@@ -23,6 +23,13 @@ as $$
   );
 $$;
 
+-- ---------- Remove as políticas do schema inicial (mesmo SQL de criação das tabelas) ----------
+-- Estas três deixavam qualquer visitante ler TODOS os cupons e TODOS os agendamentos
+-- (nome e telefone de clientes). Como políticas permissivas se somam, precisam sair.
+drop policy if exists "Publico le cupons"        on public.cupons;
+drop policy if exists "Publico le agendamentos"  on public.agendamentos;
+drop policy if exists "Publico cria agendamento" on public.agendamentos;
+
 -- ---------- Liga o RLS em todas as tabelas ----------
 alter table public.lojas         enable row level security;
 alter table public.categorias    enable row level security;
@@ -94,7 +101,7 @@ set search_path = public
 as $$
   select c.desconto_percentual::integer
   from public.cupons c
-  where c.loja_id = p_loja_id and upper(c.codigo) = upper(trim(p_codigo))
+  where c.loja_id = p_loja_id and c.ativo and upper(c.codigo) = upper(trim(p_codigo))
   limit 1;
 $$;
 
@@ -160,3 +167,9 @@ revoke all on function public.criar_agendamento(uuid, uuid, uuid, text, text, ti
 grant execute on function public.validar_cupom(uuid, text) to anon, authenticated;
 grant execute on function public.horarios_ocupados(uuid, date) to anon, authenticated;
 grant execute on function public.criar_agendamento(uuid, uuid, uuid, text, text, timestamptz) to anon, authenticated;
+
+-- ---------- Logo padrão: o caminho antigo (/img/logotipo.png) não existe no projeto ----------
+alter table public.lojas alter column logo_url set default '/logotipo.png';
+update public.lojas set logo_url = '/logotipo.png' where logo_url = '/img/logotipo.png';
+
+notify pgrst, 'reload schema';

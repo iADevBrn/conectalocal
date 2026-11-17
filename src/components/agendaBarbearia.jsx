@@ -71,10 +71,13 @@ export default function AgendaBarbearia({ loja }) {
 
     if (error) {
       const ocupado = error.code === '23505' || /ocupado/i.test(error.message || '');
+      const limite = /limite/i.test(error.message || '');
       setErroAgenda(
         ocupado
           ? 'Esse horário acabou de ser reservado por outra pessoa. Escolha outro.'
-          : 'Não foi possível agendar agora. Tente novamente em instantes.'
+          : limite
+            ? 'Este telefone já tem 3 horários marcados. Cancele um deles com o estabelecimento para marcar outro.'
+            : 'Não foi possível agendar agora. Tente novamente em instantes.'
       );
       setHorarioEscolhido('');
       setVersao((v) => v + 1);

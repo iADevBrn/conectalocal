@@ -13,6 +13,7 @@ npm run dev
 No SQL Editor do Supabase, rode NESTA ordem:
 1. `supabase/seguranca.sql` (RLS + funções de cupom e agenda)
 2. `supabase/02_melhorias.sql` (cadastro atômico da loja, expediente configurável, duração dos serviços)
+3. `supabase/03_hardening.sql` (remove políticas antigas inseguras, trava anti-spam, limites)
 
 O frontend depende das funções `validar_cupom`, `horarios_ocupados`, `criar_agendamento` e `slug_disponivel`.
 

@@ -40,7 +40,9 @@ export default async function middleware(request) {
     const descricao = loja.subtitulo
       ? `${loja.subtitulo} — faça seu pedido ou agende online.`
       : 'Faça seu pedido ou agende online.';
-    const imagem = loja.logo_url || `${url.origin}/logotipo.png`;
+    // A prévia exige URL absoluta; o banco guarda caminhos como "/logotipo.png".
+    const logo = loja.logo_url || '/logotipo.png';
+    const imagem = /^https?:\/\//.test(logo) ? logo : `${url.origin}${logo.startsWith('/') ? '' : '/'}${logo}`;
 
     const html = `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
@@ -55,7 +57,12 @@ export default async function middleware(request) {
 </head><body></body></html>`;
 
     return new Response(html, {
-      headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, s-maxage=300' }
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        // Nunca cachear: o mesmo endereço serve HTML diferente para robôs e para pessoas.
+        'cache-control': 'no-store',
+        vary: 'User-Agent'
+      }
     });
   } catch {
     return seguir();
