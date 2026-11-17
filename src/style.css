@@ -890,7 +890,7 @@ body {
     pointer-events: none;
     width: min(760px, 95vw);
     aspect-ratio: 1;
-    background: url('../img/logo-marca.png') center / contain no-repeat;
+    background: url('/logo-marca.png') center / contain no-repeat;
     opacity: 0.07;
 }
 

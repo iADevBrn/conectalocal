@@ -1,82 +1,100 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-
-const HORARIOS_PADRAO = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
-];
+import { normalizarTelefone } from '../lib/telefone';
+import { configAgenda, gerarHorarios, diaFunciona, horarioDisponivel, hojeSP, horaSP, horaAgoraSP } from '../lib/agenda';
 
 export default function AgendaBarbearia({ loja }) {
   const [servicoSelecionado, setServicoSelecionado] = useState(null);
   const [profissionalSelecionado, setProfissionalSelecionado] = useState(null);
-  const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dataEscolhida, setDataEscolhida] = useState(hojeSP);
   const [horarioEscolhido, setHorarioEscolhido] = useState('');
-  const [horariosOcupados, setHorariosOcupados] = useState([]);
+  const [horariosOcupados, setHorariosOcupados] = useState([]); // [{ inicio: 'HH:MM', duracao: min }]
 
   const [clienteNome, setClienteNome] = useState('');
   const [clienteTelefone, setClienteTelefone] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [confirmado, setConfirmado] = useState(false);
+  const [erroAgenda, setErroAgenda] = useState('');
+  const [linkWhats, setLinkWhats] = useState('');
+  const [versao, setVersao] = useState(0); // força recarregar horários ocupados
 
   // Busca horários já ocupados para aquele barbeiro na data escolhida
   useEffect(() => {
     if (!profissionalSelecionado || !dataEscolhida) return;
 
     const carregarOcupados = async () => {
-      const inicioDia = `${dataEscolhida}T00:00:00`;
-      const fimDia = `${dataEscolhida}T23:59:59`;
+      // RPC devolve só os horários (sem nome/telefone de clientes), então a tabela
+      // de agendamentos não precisa ser pública.
+      const { data, error } = await supabase.rpc('horarios_ocupados', {
+        p_profissional_id: profissionalSelecionado.id,
+        p_dia: dataEscolhida
+      });
 
-      const { data } = await supabase
-        .from('agendamentos')
-        .select('data_horario')
-        .eq('profissional_id', profissionalSelecionado.id)
-        .eq('status', 'confirmado')
-        .gte('data_horario', inicioDia)
-        .lte('data_horario', fimDia);
-
-      if (data) {
-        const horas = data.map((ag) => {
-          const d = new Date(ag.data_horario);
-          return d.toTimeString().slice(0, 5);
-        });
-        setHorariosOcupados(horas);
+      if (error) {
+        console.error('Erro ao buscar horários ocupados:', error);
+        return;
       }
+      setHorariosOcupados(
+        (data || []).map((ag) => ({ inicio: horaSP(ag.data_horario), duracao: ag.duracao_minutos || 30 }))
+      );
     };
 
     carregarOcupados();
-  }, [profissionalSelecionado, dataEscolhida]);
+  }, [profissionalSelecionado, dataEscolhida, versao]);
 
   const confirmarAgendamento = async (e) => {
     e.preventDefault();
     if (!servicoSelecionado || !profissionalSelecionado || !horarioEscolhido) return;
 
-    setEnviando(true);
-    const dataHorarioISO = new Date(`${dataEscolhida}T${horarioEscolhido}:00`).toISOString();
+    setErroAgenda('');
+    if (clienteTelefone.replace(/\D/g, '').length < 10) {
+      setErroAgenda('Informe seu WhatsApp com DDD.');
+      return;
+    }
 
-    const { error } = await supabase.from('agendamentos').insert([
-      {
-        loja_id: loja.id,
-        profissional_id: profissionalSelecionado.id,
-        item_id: servicoSelecionado.id,
-        cliente_nome: clienteNome,
-        cliente_telefone: clienteTelefone,
-        data_horario: dataHorarioISO,
-        status: 'confirmado'
-      }
-    ]);
+    setEnviando(true);
+    // Horário de Brasília (UTC-3, sem horário de verão): não depende do fuso do aparelho do cliente.
+    const dataHorarioISO = new Date(`${dataEscolhida}T${horarioEscolhido}:00-03:00`).toISOString();
+
+    // A criação passa por uma função no banco que valida loja/profissional/serviço
+    // e impede dois clientes no mesmo horário (índice único).
+    const { error } = await supabase.rpc('criar_agendamento', {
+      p_loja_id: loja.id,
+      p_profissional_id: profissionalSelecionado.id,
+      p_item_id: servicoSelecionado.id,
+      p_nome: clienteNome.trim(),
+      p_telefone: normalizarTelefone(clienteTelefone),
+      p_data_horario: dataHorarioISO
+    });
 
     setEnviando(false);
 
-    if (!error) {
-      setConfirmado(true);
-      const msg = `Olá! Acabei de agendar um horário em *${loja.nome}*:\n\n` +
-        `• *Serviço:* ${servicoSelecionado.nome}\n` +
-        `• *Profissional:* ${profissionalSelecionado.nome}\n` +
-        `• *Data:* ${dataEscolhida.split('-').reverse().join('/')} às ${horarioEscolhido}\n` +
-        `• *Cliente:* ${clienteNome}`;
-      window.open(`https://wa.me/${loja.telefone}?text=${encodeURIComponent(msg)}`, '_blank');
+    if (error) {
+      const ocupado = error.code === '23505' || /ocupado/i.test(error.message || '');
+      setErroAgenda(
+        ocupado
+          ? 'Esse horário acabou de ser reservado por outra pessoa. Escolha outro.'
+          : 'Não foi possível agendar agora. Tente novamente em instantes.'
+      );
+      setHorarioEscolhido('');
+      setVersao((v) => v + 1);
+      return;
     }
+
+    const msg = `Olá! Acabei de agendar um horário em *${loja.nome}*:\n\n` +
+      `• *Serviço:* ${servicoSelecionado.nome}\n` +
+      `• *Profissional:* ${profissionalSelecionado.nome}\n` +
+      `• *Data:* ${dataEscolhida.split('-').reverse().join('/')} às ${horarioEscolhido}\n` +
+      `• *Cliente:* ${clienteNome}`;
+    // Link clicável (window.open depois de await costuma ser bloqueado no Safari/iPhone).
+    setLinkWhats(`https://wa.me/${normalizarTelefone(loja.telefone)}?text=${encodeURIComponent(msg)}`);
+    setConfirmado(true);
   };
+
+  const cfg = useMemo(() => configAgenda(loja), [loja]);
+  const horarios = useMemo(() => gerarHorarios(cfg), [cfg]);
+  const diaAberto = diaFunciona(cfg, dataEscolhida);
+  const duracaoServico = Number(servicoSelecionado?.duracao_minutos) || 30;
 
   if (confirmado) {
     return (
@@ -87,15 +105,25 @@ export default function AgendaBarbearia({ loja }) {
           Seu horário para <strong>{servicoSelecionado.nome}</strong> com <strong>{profissionalSelecionado.nome}</strong> no dia{' '}
           <strong>{dataEscolhida.split('-').reverse().join('/')} às {horarioEscolhido}</strong> está reservado.
         </p>
+        <a
+          href={linkWhats}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-primary"
+          style={{ display: 'inline-block', textDecoration: 'none', marginBottom: '0.75rem' }}
+        >
+          Enviar confirmação no WhatsApp
+        </a>
+        <br />
         <button
           onClick={() => {
             setConfirmado(false);
             setHorarioEscolhido('');
+            setVersao((v) => v + 1);
           }}
-          className="btn-primary"
-          style={{ border: 'none', cursor: 'pointer' }}
+          style={{ background: 'none', border: 'none', color: '#78716c', cursor: 'pointer', fontWeight: 600 }}
         >
-          Fazer Novo Agendamento
+          Fazer novo agendamento
         </button>
       </div>
     );
@@ -112,7 +140,10 @@ export default function AgendaBarbearia({ loja }) {
             return (
               <div
                 key={serv.id}
-                onClick={() => setServicoSelecionado(serv)}
+                onClick={() => {
+                  setServicoSelecionado(serv);
+                  setHorarioEscolhido('');
+                }}
                 style={{
                   padding: '1rem',
                   borderRadius: '0.75rem',
@@ -175,7 +206,7 @@ export default function AgendaBarbearia({ loja }) {
             <input
               type="date"
               value={dataEscolhida}
-              min={new Date().toISOString().split('T')[0]}
+              min={hojeSP()}
               onChange={(e) => {
                 setDataEscolhida(e.target.value);
                 setHorarioEscolhido('');
@@ -183,32 +214,52 @@ export default function AgendaBarbearia({ loja }) {
             />
           </label>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))', gap: '0.6rem', marginTop: '1rem' }}>
-            {HORARIOS_PADRAO.map((hora) => {
-              const ocupado = horariosOcupados.includes(hora);
-              const selecionado = horarioEscolhido === hora;
-              return (
-                <button
-                  key={hora}
-                  type="button"
-                  disabled={ocupado}
-                  onClick={() => setHorarioEscolhido(hora)}
-                  style={{
-                    padding: '0.65rem',
-                    borderRadius: '0.5rem',
-                    border: selecionado ? `2px solid ${loja.corPrimaria}` : '1px solid #d6d3d1',
-                    background: ocupado ? '#f5f5f4' : selecionado ? loja.corPrimaria : '#fff',
-                    color: ocupado ? '#a8a29e' : selecionado ? '#fff' : '#1c1917',
-                    textDecoration: ocupado ? 'line-through' : 'none',
-                    cursor: ocupado ? 'not-allowed' : 'pointer',
-                    fontWeight: 600
-                  }}
-                >
-                  {hora}
-                </button>
-              );
-            })}
-          </div>
+          {erroAgenda && (
+            <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.7rem 1rem', borderRadius: '0.6rem', marginTop: '1rem', fontSize: '0.9rem' }}>
+              {erroAgenda}
+            </div>
+          )}
+
+          {!diaAberto ? (
+            <p style={{ marginTop: '1rem', color: '#b91c1c', fontWeight: 600 }}>
+              Não atendemos neste dia. Escolha outra data.
+            </p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))', gap: '0.6rem', marginTop: '1rem' }}>
+              {horarios.map((hora) => {
+                const livre = horarioDisponivel({
+                  cfg,
+                  hora,
+                  duracao: duracaoServico,
+                  ocupados: horariosOcupados,
+                  hoje: dataEscolhida === hojeSP(),
+                  agora: horaAgoraSP()
+                });
+                const ocupado = !livre;
+                const selecionado = horarioEscolhido === hora;
+                return (
+                  <button
+                    key={hora}
+                    type="button"
+                    disabled={ocupado}
+                    onClick={() => setHorarioEscolhido(hora)}
+                    style={{
+                      padding: '0.65rem',
+                      borderRadius: '0.5rem',
+                      border: selecionado ? `2px solid ${loja.corPrimaria}` : '1px solid #d6d3d1',
+                      background: ocupado ? '#f5f5f4' : selecionado ? loja.corPrimaria : '#fff',
+                      color: ocupado ? '#a8a29e' : selecionado ? '#fff' : '#1c1917',
+                      textDecoration: ocupado ? 'line-through' : 'none',
+                      cursor: ocupado ? 'not-allowed' : 'pointer',
+                      fontWeight: 600
+                    }}
+                  >
+                    {hora}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

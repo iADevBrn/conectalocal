@@ -5,7 +5,7 @@ export const LOJAS_MOCK = {
     nome: "Raízes",
     subtitulo: "COZINHA ORIGEM",
     telefone: "5543999999999",
-    logo: "/img/logotipo.png",
+    logo: "/logotipo.png",
     corPrimaria: "#b45309",   // Laranja/Âmbar original do Raízes
     corSecundaria: "#92400e",
     cupons: [
@@ -72,7 +72,7 @@ export const LOJAS_MOCK = {
     nome: "Doceria da Ana",
     subtitulo: "CONFEITARIA ARTESANAL",
     telefone: "5543988888888",
-    logo: "/img/logotipo.png",
+    logo: "/logotipo.png",
     corPrimaria: "#be185d",   // Rosa escuro (muda o site inteiro automaticamente)
     corSecundaria: "#9d174d",
     cupons: [

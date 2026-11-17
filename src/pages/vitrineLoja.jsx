@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useLojas } from '../context/lojaContext';
+import { supabase } from '../lib/supabase';
+import { normalizarTelefone } from '../lib/telefone';
 import AgendaBarbearia from '../components/agendaBarbearia';
 
 export default function VitrineLoja() {
   const { slug } = useParams();
-  const { lojas, carregando } = useLojas();
-  const loja = lojas[slug || 'raizes'];
+  const { lojas, carregando, carregarLojaPorSlug } = useLojas();
+  const chave = slug || 'raizes';
+  // Object.hasOwn evita que /constructor ou /toString resolvam para propriedades do Object.
+  const loja = Object.hasOwn(lojas, chave) ? lojas[chave] : undefined;
 
   const [categoriaAtiva, setCategoriaAtiva] = useState('todos');
   const [sacola, setSacola] = useState([]);
@@ -14,15 +18,36 @@ export default function VitrineLoja() {
   const [cupomInput, setCupomInput] = useState('');
   const [cupomAplicado, setCupomAplicado] = useState(null);
   const [avisoToast, setAvisoToast] = useState('');
+  const [buscando, setBuscando] = useState(true);
+
+  // Carrega só a loja do link (antes o app baixava todas as lojas de todos os clientes).
+  useEffect(() => {
+    let ativo = true;
+    setBuscando(true);
+    carregarLojaPorSlug(chave).finally(() => {
+      if (ativo) setBuscando(false);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [chave, carregarLojaPorSlug]);
 
   useEffect(() => {
     if (!loja) return;
-    document.documentElement.style.setProperty('--amber-600', loja.corPrimaria);
-    document.documentElement.style.setProperty('--amber-700', loja.corSecundaria);
+    const raiz = document.documentElement;
+    if (loja.corPrimaria) raiz.style.setProperty('--amber-600', loja.corPrimaria);
+    if (loja.corSecundaria) raiz.style.setProperty('--amber-700', loja.corSecundaria);
     document.title = `${loja.nome} | ConectaLocal`;
+
+    // Ao sair da vitrine, devolve as cores e o título padrão (senão vazam para login/landing).
+    return () => {
+      raiz.style.removeProperty('--amber-600');
+      raiz.style.removeProperty('--amber-700');
+      document.title = 'ConectaLocal';
+    };
   }, [loja]);
 
-  if (carregando) {
+  if (carregando || (buscando && !loja)) {
     return <div style={{ padding: '5rem', textAlign: 'center' }}>Carregando vitrine...</div>;
   }
 
@@ -63,18 +88,33 @@ export default function VitrineLoja() {
   const alterarQuantidade = (id, delta) => {
     setSacola((prev) =>
       prev
-        .map((item) => (item.id === id ? { ...item, quantidade: item.quantidade + delta } : item))
+        .map((item) =>
+          item.id === id ? { ...item, quantidade: Math.min(item.quantidade + delta, 20) } : item
+        )
         .filter((item) => item.quantidade > 0)
     );
   };
 
-  const aplicarCupom = () => {
+  const aplicarCupom = async () => {
     const codigoLimpo = cupomInput.trim().toUpperCase();
-    const encontrado = (loja.cupons || []).find((c) => c.codigo === codigoLimpo);
-    if (encontrado) {
-      const percentual = encontrado.desconto_percentual || encontrado.descontoPercentual;
-      setCupomAplicado({ codigo: encontrado.codigo, descontoPercentual: percentual });
-      mostrarToast(`Cupom ${encontrado.codigo} aplicado (${percentual}% OFF)!`);
+    if (!codigoLimpo) return;
+
+    let percentual = null;
+    if (loja.dono_id) {
+      // Lojas reais: o cupom é validado no servidor (a lista de cupons não é pública).
+      const { data, error } = await supabase.rpc('validar_cupom', {
+        p_loja_id: loja.id,
+        p_codigo: codigoLimpo
+      });
+      if (!error && data) percentual = Number(data);
+    } else {
+      const encontrado = (loja.cupons || []).find((c) => c.codigo === codigoLimpo);
+      if (encontrado) percentual = Number(encontrado.desconto_percentual ?? encontrado.descontoPercentual);
+    }
+
+    if (percentual && percentual > 0 && percentual <= 100) {
+      setCupomAplicado({ codigo: codigoLimpo, descontoPercentual: percentual });
+      mostrarToast(`Cupom ${codigoLimpo} aplicado (${percentual}% OFF)!`);
     } else {
       setCupomAplicado(null);
       mostrarToast('Cupom inválido ou expirado.');
@@ -98,7 +138,7 @@ export default function VitrineLoja() {
       msg += `\nCupom (${cupomAplicado.codigo}): -${formatarMoeda(valorDesconto)}`;
     }
     msg += `\n*Total: ${formatarMoeda(totalFinal)}*`;
-    window.open(`https://wa.me/${loja.telefone}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/${normalizarTelefone(loja.telefone)}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
   };
 
   const categoriasVisiveis =

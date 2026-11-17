@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { normalizarTelefone } from '../lib/telefone';
+
+// Links que já são rotas do sistema (ou que causariam confusão) não podem virar loja.
+const SLUGS_RESERVADOS = ['admin', 'login', 'api', 'www', 'app', 'painel', 'cadastro', 'suporte', 'ajuda', 'termos', 'privacidade'];
 
 export default function LoginLojista() {
   const navigate = useNavigate();
   const [modoCadastro, setModoCadastro] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
 
   // Campos de acesso
   const [email, setEmail] = useState('');
@@ -35,63 +40,61 @@ export default function LoginLojista() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErro('');
+    setAviso('');
     setCarregando(true);
 
     try {
       if (!modoCadastro) {
         // LOGIN DE LOJISTA EXISTENTE
-        const { error } = await supabase.auth.signInWithPassword({ email, senha });
+        const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
         if (error) throw error;
         navigate('/admin');
       } else {
         // CADASTRO DE NOVO LOJISTA + CRIAÇÃO DA LOJA
         if (!slug) throw new Error('Defina um link válido para sua loja.');
+        if (SLUGS_RESERVADOS.includes(slug)) throw new Error('Esse link é reservado pelo sistema. Escolha outro.');
+        if (telefone.replace(/\D/g, '').length < 10) throw new Error('Informe o WhatsApp com DDD.');
 
+        // Confere o link ANTES de criar a conta (evita conta sem loja).
+        const { data: disponivel, error: slugError } = await supabase.rpc('slug_disponivel', { p_slug: slug });
+        if (slugError) throw slugError;
+        if (!disponivel) throw new Error('Esse link já está em uso ou é reservado. Escolha outro.');
+
+        // Os dados da loja viajam junto com o cadastro; um trigger no banco cria a loja e a
+        // categoria padrão na mesma transação da conta (funciona com ou sem confirmação de e-mail).
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
-          senha
+          password: senha,
+          options: {
+            data: {
+              nome_loja: nomeLoja.trim(),
+              slug,
+              modo: modoNegocio,
+              telefone: normalizarTelefone(telefone)
+            }
+          }
         });
         if (authError) throw authError;
 
-        const userId = authData.user?.id;
-        if (!userId) throw new Error('Erro ao identificar usuário criado.');
-
-        // 1. Insere a loja na nuvem
-        const { data: novaLoja, error: lojaError } = await supabase
-          .from('lojas')
-          .insert([
-            {
-              dono_id: userId,
-              slug,
-              nome: nomeLoja,
-              subtitulo: modoNegocio === 'agendamento' ? 'AGENDAMENTO ONLINE' : 'PEDIDOS ONLINE',
-              modo: modoNegocio,
-              telefone: telefone.replace(/\D/g, '')
-            }
-          ])
-          .select()
-          .single();
-
-        if (lojaError) {
-          if (lojaError.code === '23505') {
-            throw new Error('Esse link (slug) já está em uso. Escolha outro.');
-          }
-          throw lojaError;
+        // E-mail já cadastrado: o Supabase não dá erro, devolve usuário sem identidades.
+        if (authData.user && authData.user.identities?.length === 0) {
+          throw new Error('Este e-mail já está cadastrado. Faça login.');
         }
 
-        // 2. Cria uma categoria padrão para a loja não começar vazia
-        await supabase.from('categorias').insert([
-          {
-            loja_id: novaLoja.id,
-            nome: modoNegocio === 'agendamento' ? 'Serviços Principais' : 'Destaques',
-            ordem: 1
-          }
-        ]);
+        if (!authData.session) {
+          setAviso('Conta criada e loja reservada! Confirme seu e-mail e depois faça login.');
+          return;
+        }
 
         navigate('/admin');
       }
     } catch (err) {
-      setErro(err.message || 'Ocorreu um erro. Verifique seus dados.');
+      const traducoes = {
+        'Invalid login credentials': 'E-mail ou senha incorretos.',
+        'User already registered': 'Este e-mail já está cadastrado. Faça login.',
+        'Email not confirmed': 'Confirme seu e-mail antes de entrar.'
+      };
+      setErro(traducoes[err.message] || err.message || 'Ocorreu um erro. Verifique seus dados.');
     } finally {
       setCarregando(false);
     }
@@ -117,6 +120,12 @@ export default function LoginLojista() {
         {erro && (
           <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.75rem 1rem', borderRadius: '0.6rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
             {erro}
+          </div>
+        )}
+
+        {aviso && (
+          <div style={{ background: '#dcfce7', color: '#15803d', padding: '0.75rem 1rem', borderRadius: '0.6rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            {aviso}
           </div>
         )}
 

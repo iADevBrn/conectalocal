@@ -1,16 +1,24 @@
-# React + Vite
+# ConectaLocal
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+SaaS multi-loja (cardápio com sacola via WhatsApp e agenda online) feito com React + Vite + Supabase.
 
-Currently, two official plugins are available:
+## Rodar localmente
+```bash
+npm install
+cp .env.example .env   # preencha com a URL e a chave ANON do Supabase
+npm run dev
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Banco de dados
+No SQL Editor do Supabase, rode NESTA ordem:
+1. `supabase/seguranca.sql` (RLS + funções de cupom e agenda)
+2. `supabase/02_melhorias.sql` (cadastro atômico da loja, expediente configurável, duração dos serviços)
 
-## React Compiler
+O frontend depende das funções `validar_cupom`, `horarios_ocupados`, `criar_agendamento` e `slug_disponivel`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Prévia de links (WhatsApp)
+`middleware.js` (Vercel Routing Middleware) devolve título e imagem da loja só para robôs de prévia.
+Teste após o deploy: `curl -A "WhatsApp/2.23" https://SEU-DOMINIO/slug-da-loja` deve retornar as tags `og:`.
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Deploy
+Vercel. Defina `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em Project Settings > Environment Variables.

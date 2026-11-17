@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useLojas } from '../context/lojaContext';
 import { supabase } from '../lib/supabase';
+import { normalizarTelefone } from '../lib/telefone';
+import { escurecerCor } from '../lib/cores';
+import { configAgenda, DIAS_SEMANA } from '../lib/agenda';
 
 export default function PainelAdmin() {
   const navigate = useNavigate();
@@ -11,6 +14,8 @@ export default function PainelAdmin() {
     minhaLoja,
     carregando,
     atualizarConfigLoja,
+    atualizarConfigAgenda,
+    cancelarAgendamento,
     salvarProduto,
     removerProduto,
     adicionarCupom,
@@ -20,12 +25,13 @@ export default function PainelAdmin() {
     sair
   } = useLojas();
 
-  // Se houver loja vinculada ao usuário logado, usa ela; caso contrário, usa 'raizes' para testes
-  const slugAtivo = minhaLoja ? minhaLoja.slug : 'raizes';
-  const loja = lojas[slugAtivo];
+  // O painel só edita a loja do usuário logado (sem fallback para loja de demonstração).
+  const slugAtivo = minhaLoja?.slug;
+  const loja = slugAtivo ? lojas[slugAtivo] : null;
 
   const [abaAtiva, setAbaAtiva] = useState('aparencia');
   const [mensagemSalvo, setMensagemSalvo] = useState('');
+  const [mensagemErro, setMensagemErro] = useState(false);
 
   // Estados de Produtos/Serviços
   const [novoNome, setNovoNome] = useState('');
@@ -70,67 +76,134 @@ export default function PainelAdmin() {
     return <div style={{ padding: '4rem', textAlign: 'center' }}>Carregando painel...</div>;
   }
 
+  if (!usuario) {
+    return <Navigate to="/login" replace />;
+  }
+
   if (!loja) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center' }}>
-        <h2>Nenhuma loja encontrada</h2>
-        <Link to="/login">Fazer login ou criar loja</Link>
+        <h2>Nenhuma loja encontrada para esta conta</h2>
+        <Link to="/login">Voltar ao login</Link>
       </div>
     );
   }
 
-  const notificar = (texto) => {
+  const notificar = (texto, erro = false) => {
+    setMensagemErro(erro);
     setMensagemSalvo(texto);
-    setTimeout(() => setMensagemSalvo(''), 2500);
+    setTimeout(() => setMensagemSalvo(''), erro ? 5000 : 2500);
+  };
+
+  // Executa a ação e mostra sucesso OU erro (antes, o aviso de sucesso aparecia mesmo se o banco recusasse).
+  const executar = async (acao, msgOk) => {
+    try {
+      await acao();
+      if (msgOk) notificar(msgOk);
+      return true;
+    } catch (err) {
+      console.error(err);
+      notificar(`Não foi possível salvar: ${err.message || 'erro desconhecido'}`, true);
+      return false;
+    }
   };
 
   const handleSalvarAparencia = async (e) => {
     e.preventDefault();
     const form = new FormData(e.target);
-    await atualizarConfigLoja(slugAtivo, {
-      nome: form.get('nome'),
-      subtitulo: form.get('subtitulo'),
-      telefone: form.get('telefone'),
-      modo: form.get('modo'),
-      corPrimaria: form.get('corPrimaria'),
-      corSecundaria: form.get('corPrimaria')
-    });
-    notificar('Configurações salvas na nuvem!');
+    const corPrimaria = form.get('corPrimaria');
+    await executar(
+      () =>
+        atualizarConfigLoja(slugAtivo, {
+          nome: form.get('nome'),
+          subtitulo: form.get('subtitulo'),
+          telefone: normalizarTelefone(form.get('telefone')),
+          modo: form.get('modo'),
+          corPrimaria,
+          corSecundaria: escurecerCor(corPrimaria)
+        }),
+      'Configurações salvas!'
+    );
   };
 
   const handleCriarItem = async (e) => {
     e.preventDefault();
     if (!novoNome || !novoPreco) return;
-    await salvarProduto(slugAtivo, {
-      categoriaId: novaCategoria || loja.categorias[0]?.id,
-      tag: loja.modo === 'agendamento' ? `${novaDuracao} min` : 'Destaque',
-      nome: novoNome,
-      descricao: novaDescricao,
-      preco: parseFloat(novoPreco.replace(',', '.')),
-      duracao_minutos: Number(novaDuracao)
-    });
-    setNovoNome('');
-    setNovaDescricao('');
-    setNovoPreco('');
-    notificar(loja.modo === 'agendamento' ? 'Serviço cadastrado!' : 'Produto adicionado!');
+    const preco = parseFloat(String(novoPreco).replace(',', '.'));
+    if (!Number.isFinite(preco) || preco < 0) {
+      notificar('Informe um preço válido.', true);
+      return;
+    }
+    const ok = await executar(
+      () =>
+        salvarProduto(slugAtivo, {
+          categoriaId: novaCategoria || loja.categorias[0]?.id,
+          tag: loja.modo === 'agendamento' ? `${novaDuracao} min` : 'Destaque',
+          nome: novoNome,
+          descricao: novaDescricao,
+          preco,
+          duracao_minutos: Number(novaDuracao)
+        }),
+      loja.modo === 'agendamento' ? 'Serviço cadastrado!' : 'Produto adicionado!'
+    );
+    if (ok) {
+      setNovoNome('');
+      setNovaDescricao('');
+      setNovoPreco('');
+    }
+  };
+
+  const handleSalvarHorarios = async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const cfg = {
+      inicio: form.get('inicio'),
+      fim: form.get('fim'),
+      intervalo: Number(form.get('intervalo')),
+      pausaInicio: form.get('pausaInicio') || '',
+      pausaFim: form.get('pausaFim') || '',
+      dias: form.getAll('dias').map(Number)
+    };
+    if (cfg.dias.length === 0) return notificar('Marque pelo menos um dia de atendimento.', true);
+    if (cfg.fim <= cfg.inicio) return notificar('O horário de fechamento deve ser depois da abertura.', true);
+    if (!!cfg.pausaInicio !== !!cfg.pausaFim) return notificar('Preencha o início e o fim da pausa (ou deixe os dois vazios).', true);
+    if (cfg.pausaInicio && cfg.pausaFim <= cfg.pausaInicio) return notificar('O fim da pausa deve ser depois do início.', true);
+    await executar(() => atualizarConfigAgenda(slugAtivo, cfg), 'Horários de atendimento salvos!');
+  };
+
+  const handleCancelarAgendamento = (ag) => {
+    if (!window.confirm(`Cancelar o horário de ${ag.cliente_nome}?`)) return;
+    executar(async () => {
+      await cancelarAgendamento(slugAtivo, ag.id);
+      setAgendamentos((lista) => lista.map((a) => (a.id === ag.id ? { ...a, status: 'cancelado' } : a)));
+    }, 'Agendamento cancelado.');
   };
 
   const handleCriarProfissional = async (e) => {
     e.preventDefault();
     if (!nomeProfissional || !loja.id) return;
-    await adicionarProfissional(loja.id, nomeProfissional, especialidadeProf);
-    setNomeProfissional('');
-    setEspecialidadeProf('');
-    notificar('Profissional adicionado à equipe!');
+    const ok = await executar(
+      () => adicionarProfissional(loja.id, nomeProfissional.trim(), especialidadeProf.trim()),
+      'Profissional adicionado à equipe!'
+    );
+    if (ok) {
+      setNomeProfissional('');
+      setEspecialidadeProf('');
+    }
   };
 
   const handleCriarCupom = async (e) => {
     e.preventDefault();
     if (!codigoCupom || !descontoCupom) return;
-    await adicionarCupom(slugAtivo, codigoCupom, descontoCupom);
-    setCodigoCupom('');
-    setDescontoCupom('');
-    notificar('Cupom ativado!');
+    const ok = await executar(() => adicionarCupom(slugAtivo, codigoCupom, descontoCupom), 'Cupom ativado!');
+    if (ok) {
+      setCodigoCupom('');
+      setDescontoCupom('');
+    }
+  };
+
+  const confirmarRemocao = (texto, acao, msgOk) => {
+    if (window.confirm(texto)) executar(acao, msgOk);
   };
 
   const handleLogout = async () => {
@@ -148,7 +221,7 @@ export default function PainelAdmin() {
           <div>
             <strong style={{ fontSize: '1.2rem' }}>ConectaLocal · {loja.nome}</strong>
             <span style={{ display: 'block', fontSize: '0.8rem', color: '#a8a29e' }}>
-              {usuario ? `Logado como ${usuario.email}` : 'Modo Demonstração'} · Link: /{loja.slug}
+              {usuario ? `Logado como ${usuario.email}` : 'Sem sessão'} · Link: /{loja.slug}
             </span>
           </div>
 
@@ -183,8 +256,8 @@ export default function PainelAdmin() {
 
       <main className="container" style={{ padding: '2.5rem 2rem' }}>
         {mensagemSalvo && (
-          <div style={{ background: '#16a34a', color: '#fff', padding: '0.85rem 1.25rem', borderRadius: '0.75rem', marginBottom: '1.5rem', fontWeight: 600 }}>
-            ✓ {mensagemSalvo}
+          <div style={{ background: mensagemErro ? '#b91c1c' : '#16a34a', color: '#fff', padding: '0.85rem 1.25rem', borderRadius: '0.75rem', marginBottom: '1.5rem', fontWeight: 600 }}>
+            {mensagemErro ? '⚠' : '✓'} {mensagemSalvo}
           </div>
         )}
 
@@ -249,7 +322,22 @@ export default function PainelAdmin() {
                   color: abaAtiva === 'agenda' ? '#fff' : '#44403c'
                 }}
               >
-                4. Agenda ({agendamentos.length})
+                4. Agenda ({agendamentos.filter((a) => a.status === 'confirmado').length})
+              </button>
+
+              <button
+                onClick={() => setAbaAtiva('horarios')}
+                style={{
+                  padding: '0.75rem 1.4rem',
+                  borderRadius: '9999px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  background: abaAtiva === 'horarios' ? '#1c1917' : '#e7e5e4',
+                  color: abaAtiva === 'horarios' ? '#fff' : '#44403c'
+                }}
+              >
+                5. Horários de Atendimento
               </button>
             </>
           )}
@@ -294,7 +382,7 @@ export default function PainelAdmin() {
               <input name="subtitulo" defaultValue={loja.subtitulo} />
             </label>
             <label className="field">
-              <span>WhatsApp (55 + DDD + Número)</span>
+              <span>WhatsApp (com DDD)</span>
               <input name="telefone" defaultValue={loja.telefone} required />
             </label>
             <label className="field">
@@ -363,7 +451,7 @@ export default function PainelAdmin() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <strong>R$ {Number(prod.preco).toFixed(2).replace('.', ',')}</strong>
                       <button
-                        onClick={() => removerProduto(slugAtivo, prod.id)}
+                        onClick={() => confirmarRemocao(`Excluir "${prod.nome}"?`, () => removerProduto(slugAtivo, prod.id), 'Item excluído.')}
                         style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '0.45rem 0.75rem', borderRadius: '0.4rem', cursor: 'pointer' }}
                       >
                         Excluir
@@ -407,7 +495,7 @@ export default function PainelAdmin() {
                         <span style={{ display: 'block', fontSize: '0.85rem', color: '#78716c' }}>{prof.especialidade}</span>
                       </div>
                       <button
-                        onClick={() => removerProfissional(prof.id)}
+                        onClick={() => confirmarRemocao(`Remover ${prof.nome} da equipe?`, () => removerProfissional(loja.id, prof.id), 'Profissional removido.')}
                         style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '0.4rem 0.7rem', borderRadius: '0.4rem', cursor: 'pointer' }}
                       >
                         Remover
@@ -437,15 +525,105 @@ export default function PainelAdmin() {
                         Serviço: {ag.itens?.nome} · Profissional: {ag.profissionais?.nome} · Tel: {ag.cliente_telefone}
                       </p>
                     </div>
-                    <span style={{ background: '#dcfce7', color: '#15803d', padding: '0.3rem 0.75rem', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: 700 }}>
-                      Confirmado
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <span
+                        style={{
+                          background: ag.status === 'confirmado' ? '#dcfce7' : '#f5f5f4',
+                          color: ag.status === 'confirmado' ? '#15803d' : '#78716c',
+                          padding: '0.3rem 0.75rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          textTransform: 'capitalize'
+                        }}
+                      >
+                        {ag.status || 'confirmado'}
+                      </span>
+                      <a
+                        href={`https://wa.me/${normalizarTelefone(ag.cliente_telefone)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '0.8rem', fontWeight: 600, color: '#15803d' }}
+                      >
+                        WhatsApp
+                      </a>
+                      {ag.status === 'confirmado' && (
+                        <button
+                          onClick={() => handleCancelarAgendamento(ag)}
+                          style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '0.35rem 0.7rem', borderRadius: '0.4rem', cursor: 'pointer', fontSize: '0.8rem' }}
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
         )}
+
+        {/* ABA HORÁRIOS DE ATENDIMENTO */}
+        {abaAtiva === 'horarios' && isAgendamento && (() => {
+          const cfg = configAgenda(loja);
+          return (
+            <form onSubmit={handleSalvarHorarios} className="checkout-card" style={{ maxWidth: '600px', background: '#fff' }}>
+              <h3>Horários de Atendimento</h3>
+              <p style={{ color: '#78716c', fontSize: '0.9rem', margin: '0 0 1rem' }}>
+                É o que seus clientes enxergam na hora de agendar. A duração de cada serviço é respeitada automaticamente.
+              </p>
+
+              <div className="field">
+                <span>Dias de atendimento</span>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {DIAS_SEMANA.map((nome, i) => (
+                    <label key={nome} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                      <input type="checkbox" name="dias" value={i} defaultChecked={cfg.dias.includes(i)} />
+                      {nome}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <label className="field">
+                  <span>Abre às</span>
+                  <input type="time" name="inicio" defaultValue={cfg.inicio} required />
+                </label>
+                <label className="field">
+                  <span>Fecha às</span>
+                  <input type="time" name="fim" defaultValue={cfg.fim} required />
+                </label>
+                <label className="field">
+                  <span>Pausa (almoço) das</span>
+                  <input type="time" name="pausaInicio" defaultValue={cfg.pausaInicio} />
+                </label>
+                <label className="field">
+                  <span>até</span>
+                  <input type="time" name="pausaFim" defaultValue={cfg.pausaFim} />
+                </label>
+              </div>
+
+              <label className="field">
+                <span>Intervalo entre horários</span>
+                <select
+                  name="intervalo"
+                  defaultValue={cfg.intervalo}
+                  style={{ padding: '0.7rem', borderRadius: '0.6rem', border: '1px solid #d6d3d1' }}
+                >
+                  <option value="15">15 minutos</option>
+                  <option value="30">30 minutos</option>
+                  <option value="45">45 minutos</option>
+                  <option value="60">1 hora</option>
+                </select>
+              </label>
+
+              <button type="submit" className="btn-primary" style={{ border: 'none', cursor: 'pointer', marginTop: '1rem' }}>
+                Salvar Horários
+              </button>
+            </form>
+          );
+        })()}
 
         {/* ABA CUPONS */}
         {abaAtiva === 'cupons' && (
@@ -470,7 +648,7 @@ export default function PainelAdmin() {
               {(loja.cupons || []).map((c) => (
                 <div key={c.codigo} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', border: '1px dashed #a8a29e', borderRadius: '0.5rem', marginBottom: '0.5rem' }}>
                   <span><strong>{c.codigo}</strong> — {c.desconto_percentual || c.descontoPercentual}% OFF</span>
-                  <button onClick={() => removerCupom(slugAtivo, c.codigo)} style={{ color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer' }}>Remover</button>
+                  <button onClick={() => confirmarRemocao(`Remover o cupom ${c.codigo}?`, () => removerCupom(slugAtivo, c.codigo), 'Cupom removido.')} style={{ color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer' }}>Remover</button>
                 </div>
               ))}
             </div>
