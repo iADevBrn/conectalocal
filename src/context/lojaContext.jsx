@@ -16,7 +16,7 @@ function mapearLoja(l) {
     ...l,
     corPrimaria: l.cor_primaria || '#b45309',
     corSecundaria: l.cor_secundaria || '#92400e',
-    logo: !l.logo_url || l.logo_url === '/img/logotipo.png' ? '/logotipo.png' : l.logo_url,
+    logo: l.logo_url || null,
     categorias: [...(l.categorias || [])].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)),
     profissionais: l.profissionais || [],
     cupons: [], // cupons NÃO são públicos: só o dono os carrega (veja carregarDadosNuvem)

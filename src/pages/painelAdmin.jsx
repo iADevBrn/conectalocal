@@ -61,7 +61,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
     nome: form.nome || 'Nome do seu negócio',
     subtitulo: form.subtitulo,
     telefone: form.telefone,
-    logo: urlHttps(form.logoUrl) || '/logotipo.png'
+    logo: urlHttps(form.logoUrl) || null
   };
   const amostras = (loja.produtos || []).slice(0, 2).length
     ? (loja.produtos || []).slice(0, 2)
@@ -79,7 +79,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
       modo: form.modo,
       corPrimaria: corValida(form.cor, '#b45309'),
       corSecundaria: secundaria,
-      logoUrl: urlHttps(form.logoUrl) || '/logotipo.png',
+      logoUrl: urlHttps(form.logoUrl) || '',
       personalizacao: normalizarTema(form.tema)
     });
   };
@@ -223,7 +223,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
           <TemaLoja tema={tema} corPrimaria={form.cor} corSecundaria={secundaria}>
             <div className="v-topbar">
               <div className="v-wrap v-topbar-in">
-                <div className="v-brand"><img src={lojaPreview.logo} alt="" /><span>{lojaPreview.nome}</span></div>
+                <div className="v-brand">{lojaPreview.logo ? <img src={lojaPreview.logo} alt="" /> : <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="currentColor"/><path d="M10 17h14M17 10v14" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>}<span>{lojaPreview.nome}</span></div>
                 {catalogo && <span className="v-cart-btn"><i className="fa-solid fa-bag-shopping" /> Sacola <span className="v-cart-count">0</span></span>}
               </div>
             </div>
@@ -482,7 +482,7 @@ export default function PainelAdmin() {
     <div className="adm">
       <aside className="adm-side">
         <Link to="/" className="adm-brand">
-          <img src="/logotipo.png" alt="" /> ConectaLocal
+          <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="white"/><path d="M10 17h14M17 10v14" stroke="#0a0a0a" stroke-width="3" stroke-linecap="round"/></svg> ConectaLocal
         </Link>
 
         <div className="adm-store">

@@ -12,7 +12,7 @@ export default function HeroLoja({ loja, tema, demo = false }) {
       {!compacto && <div className="v-cover" data-capa={tema.capaUrl ? 'imagem' : tema.capa} style={capaStyle} />}
 
       <div className="v-wrap v-hero-body">
-        <img className="v-avatar" src={loja.logo} alt="" />
+        {loja.logo ? <img className="v-avatar" src={loja.logo} alt="" /> : <div className="v-avatar" aria-hidden="true"><svg width="108" height="108" viewBox="0 0 108 108" fill="none"><rect width="108" height="108" rx="22" fill="currentColor"/><path d="M32 54h44M54 32v44" stroke="white" stroke-width="6" stroke-linecap="round"/></svg></div>}
         <div className="v-hero-text">
           <h1 className="v-title">{loja.nome}</h1>
           {loja.subtitulo && <p className="v-subtitle">{loja.subtitulo}</p>}

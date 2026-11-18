@@ -145,7 +145,7 @@ export default function VitrineLoja() {
       <header className="v-topbar">
         <div className="v-wrap v-topbar-in">
           <div className="v-brand">
-            <img src={loja.logo} alt="" />
+            {loja.logo ? <img src={loja.logo} alt="" /> : <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="currentColor"/><path d="M10 17h14M17 10v14" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>}
             <span>{loja.nome}</span>
           </div>
 
