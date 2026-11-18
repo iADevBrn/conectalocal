@@ -9,7 +9,8 @@ export const PALETAS = [
   { id: 'violeta', nome: 'Violeta', primaria: '#6d28d9' },
   { id: 'oceano', nome: 'Oceano', primaria: '#0369a1' },
   { id: 'esmeralda', nome: 'Esmeralda', primaria: '#047857' },
-  { id: 'grafite', nome: 'Grafite', primaria: '#27272a' }
+  { id: 'grafite', nome: 'Grafite', primaria: '#27272a' },
+  { id: 'preto', nome: 'Preto', primaria: '#0a0a0a' }
 ];
 
 export const MODOS = {

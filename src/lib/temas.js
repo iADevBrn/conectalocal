@@ -66,6 +66,17 @@ export const TEMAS = [
     corFundoClaro: '#fff7ed',
     corFundoEscuro: '#7c2d12',
     icone: '🟤'
+  },
+  {
+    id: 'preto-verde',
+    nome: 'Preto & Verde',
+    descricao: 'Sóbrio e natural — ideal para marcas modernas, tech, wellness, barbearias',
+    corPrimaria: '#0a0a0a',
+    corSecundaria: '#047857',
+    corHover: '#065f46',
+    corFundoClaro: '#f0fdf4',
+    corFundoEscuro: '#052e16',
+    icone: '⚫'
   }
 ];
 
