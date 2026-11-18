@@ -16,7 +16,7 @@ function mapearLoja(l) {
     ...l,
     corPrimaria: l.cor_primaria || '#b45309',
     corSecundaria: l.cor_secundaria || '#92400e',
-    logo: l.logo_url || '/logotipo.png',
+    logo: !l.logo_url || l.logo_url === '/img/logotipo.png' ? '/logotipo.png' : l.logo_url,
     categorias: [...(l.categorias || [])].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)),
     profissionais: l.profissionais || [],
     cupons: [], // cupons NÃO são públicos: só o dono os carrega (veja carregarDadosNuvem)
@@ -128,7 +128,9 @@ export function LojaProvider({ children }) {
           telefone: novosDados.telefone,
           modo: novosDados.modo || loja.modo,
           cor_primaria: novosDados.corPrimaria,
-          cor_secundaria: novosDados.corSecundaria
+          cor_secundaria: novosDados.corSecundaria,
+          ...(novosDados.logoUrl ? { logo_url: novosDados.logoUrl } : {}),
+          ...(novosDados.personalizacao ? { personalizacao: novosDados.personalizacao } : {})
         })
         .eq('id', loja.id)
     );

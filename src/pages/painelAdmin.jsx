@@ -4,25 +4,267 @@ import { useLojas } from '../context/lojaContext';
 import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
 import { escurecerCor } from '../lib/cores';
-import { configAgenda, DIAS_SEMANA } from '../lib/agenda';
+import { configAgenda, DIAS_SEMANA, horaSP } from '../lib/agenda';
+import {
+  PALETAS, MODOS, FONTES, CANTOS, CAPAS, CABECALHOS, LISTAGENS,
+  lerTema, normalizarTema, urlHttps, corValida
+} from '../lib/tema';
+import TemaLoja from '../components/TemaLoja';
+import HeroLoja from '../components/HeroLoja';
 
+const moeda = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+const fmtData = (iso) =>
+  new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short', day: '2-digit', month: '2-digit' });
+
+// Grupo de botões de escolha (tema, fonte, cantos...)
+function Opcoes({ valor, opcoes, onChange, estiloFonte = false }) {
+  return (
+    <div className="opt-grid">
+      {Object.entries(opcoes).map(([id, o]) => (
+        <button
+          key={id}
+          type="button"
+          className="opt"
+          aria-pressed={valor === id}
+          onClick={() => onChange(id)}
+          style={estiloFonte ? { fontFamily: o.amostra } : undefined}
+        >
+          <strong>{o.nome}</strong>
+          {o.desc && <small>{o.desc}</small>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ---------- Aba "Aparência": personalização com pré-visualização ao vivo ----------
+function AbaAparencia({ loja, onSalvar, salvando }) {
+  const [form, setForm] = useState(() => ({
+    modo: loja.modo || 'catalogo',
+    nome: loja.nome || '',
+    subtitulo: loja.subtitulo || '',
+    telefone: loja.telefone || '',
+    logoUrl: /^https:\/\//.test(loja.logo || '') ? loja.logo : '',
+    cor: corValida(loja.corPrimaria, '#b45309'),
+    tema: lerTema(loja)
+  }));
+
+  const campo = (chave) => (e) => setForm((f) => ({ ...f, [chave]: e.target.value }));
+  const setTema = (chave, valor) => setForm((f) => ({ ...f, tema: { ...f.tema, [chave]: valor } }));
+  const temaTxt = (chave) => (e) => setTema(chave, e.target.value);
+
+  const tema = normalizarTema(form.tema);
+  const secundaria = escurecerCor(form.cor);
+  const catalogo = form.modo !== 'agendamento';
+  const lojaPreview = {
+    ...loja,
+    nome: form.nome || 'Nome do seu negócio',
+    subtitulo: form.subtitulo,
+    telefone: form.telefone,
+    logo: urlHttps(form.logoUrl) || '/logotipo.png'
+  };
+  const amostras = (loja.produtos || []).slice(0, 2).length
+    ? (loja.produtos || []).slice(0, 2)
+    : [
+        { id: 'a', tag: catalogo ? 'Destaque' : '30 min', nome: catalogo ? 'Item de exemplo' : 'Corte de exemplo', descricao: 'Descrição curta do que você oferece.', preco: 25 },
+        { id: 'b', tag: catalogo ? 'Novo' : '45 min', nome: catalogo ? 'Outro item' : 'Barba completa', descricao: 'Mais um exemplo para ver o estilo.', preco: 32 }
+      ];
+
+  const salvar = (e) => {
+    e.preventDefault();
+    onSalvar({
+      nome: form.nome.trim(),
+      subtitulo: form.subtitulo.trim(),
+      telefone: normalizarTelefone(form.telefone),
+      modo: form.modo,
+      corPrimaria: corValida(form.cor, '#b45309'),
+      corSecundaria: secundaria,
+      logoUrl: urlHttps(form.logoUrl) || '/logotipo.png',
+      personalizacao: normalizarTema(form.tema)
+    });
+  };
+
+  return (
+    <form onSubmit={salvar} className="studio">
+      <div className="studio-form">
+        <section className="card">
+          <h3>Identidade</h3>
+          <label className="field">
+            <span>Tipo de funcionamento</span>
+            <select value={form.modo} onChange={campo('modo')}>
+              <option value="catalogo">Cardápio / catálogo (pedidos com sacola)</option>
+              <option value="agendamento">Agendamento (profissional + horário)</option>
+            </select>
+          </label>
+          <div className="field-row">
+            <label className="field">
+              <span>Nome do estabelecimento</span>
+              <input value={form.nome} onChange={campo('nome')} maxLength={80} required />
+            </label>
+            <label className="field">
+              <span>Slogan</span>
+              <input value={form.subtitulo} onChange={campo('subtitulo')} maxLength={60} placeholder="Ex: Cozinha artesanal" />
+            </label>
+          </div>
+          <div className="field-row">
+            <label className="field">
+              <span>WhatsApp (com DDD)</span>
+              <input value={form.telefone} onChange={campo('telefone')} inputMode="tel" required />
+            </label>
+            <label className="field">
+              <span>Link da sua logo (opcional)</span>
+              <input value={form.logoUrl} onChange={campo('logoUrl')} placeholder="https://..." inputMode="url" />
+              <small>Use o endereço de uma imagem que já esteja na internet (https).</small>
+            </label>
+          </div>
+        </section>
+
+        <section className="card">
+          <h3>Cores</h3>
+          <p className="group-title">Paletas prontas</p>
+          <div className="swatches">
+            {PALETAS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="swatch"
+                title={p.nome}
+                aria-label={`Paleta ${p.nome}`}
+                aria-pressed={form.cor.toLowerCase() === p.primaria}
+                style={{ background: p.primaria }}
+                onClick={() => setForm((f) => ({ ...f, cor: p.primaria }))}
+              />
+            ))}
+            <label className="color-input">
+              <input type="color" value={form.cor} onChange={campo('cor')} aria-label="Cor personalizada" />
+              Cor da sua marca
+            </label>
+          </div>
+
+          <p className="group-title">Fundo da vitrine</p>
+          <Opcoes valor={tema.modo} opcoes={MODOS} onChange={(v) => setTema('modo', v)} />
+        </section>
+
+        <section className="card">
+          <h3>Estilo</h3>
+          <p className="group-title">Fonte</p>
+          <Opcoes valor={tema.fonte} opcoes={FONTES} onChange={(v) => setTema('fonte', v)} estiloFonte />
+
+          <p className="group-title">Cantos dos botões e cartões</p>
+          <Opcoes valor={tema.cantos} opcoes={CANTOS} onChange={(v) => setTema('cantos', v)} />
+
+          <p className="group-title">Topo da vitrine</p>
+          <Opcoes valor={tema.cabecalho} opcoes={CABECALHOS} onChange={(v) => setTema('cabecalho', v)} />
+
+          {tema.cabecalho === 'capa' && (
+            <>
+              <p className="group-title">Estilo da capa</p>
+              <Opcoes valor={tema.capa} opcoes={CAPAS} onChange={(v) => setTema('capa', v)} />
+              <label className="field">
+                <span>Foto de capa (opcional)</span>
+                <input value={form.tema.capaUrl} onChange={temaTxt('capaUrl')} placeholder="https://..." inputMode="url" />
+                <small>Se preencher, a foto substitui o estilo acima.</small>
+              </label>
+            </>
+          )}
+
+          {catalogo && (
+            <>
+              <p className="group-title">Como listar os itens</p>
+              <Opcoes valor={tema.listagem} opcoes={LISTAGENS} onChange={(v) => setTema('listagem', v)} />
+            </>
+          )}
+
+          <label className="check">
+            <input type="checkbox" checked={tema.animacoes} onChange={(e) => setTema('animacoes', e.target.checked)} />
+            Animações suaves ao passar o mouse
+          </label>
+        </section>
+
+        <section className="card">
+          <h3>Apresentação</h3>
+          <label className="field">
+            <span>Sobre o negócio</span>
+            <textarea value={form.tema.sobre} onChange={temaTxt('sobre')} maxLength={300} placeholder="Conte em poucas palavras o que torna seu negócio especial." />
+            <small>{form.tema.sobre.length}/300</small>
+          </label>
+          <div className="field-row">
+            <label className="field">
+              <span>Horário de funcionamento</span>
+              <input value={form.tema.horarioTexto} onChange={temaTxt('horarioTexto')} maxLength={80} placeholder="Seg a Sáb, 9h às 19h" />
+            </label>
+            <label className="field">
+              <span>Instagram</span>
+              <input value={form.tema.instagram} onChange={temaTxt('instagram')} maxLength={40} placeholder="@seunegocio" />
+            </label>
+          </div>
+          <div className="field-row">
+            <label className="field">
+              <span>Endereço</span>
+              <input value={form.tema.endereco} onChange={temaTxt('endereco')} maxLength={120} placeholder="Rua, número, bairro" />
+            </label>
+            <label className="field">
+              <span>Link do mapa (opcional)</span>
+              <input value={form.tema.mapaLink} onChange={temaTxt('mapaLink')} placeholder="https://maps.google.com/..." inputMode="url" />
+            </label>
+          </div>
+        </section>
+
+        <div>
+          <button type="submit" className="btn btn-primary btn-lg" disabled={salvando}>
+            {salvando ? 'Salvando...' : 'Salvar aparência'}
+          </button>
+        </div>
+      </div>
+
+      <aside className="studio-preview" aria-label="Pré-visualização">
+        <div className="preview-label">Pré-visualização <span>atualiza ao vivo</span></div>
+        <div className="preview-frame">
+          <TemaLoja tema={tema} corPrimaria={form.cor} corSecundaria={secundaria}>
+            <div className="v-topbar">
+              <div className="v-wrap v-topbar-in">
+                <div className="v-brand"><img src={lojaPreview.logo} alt="" /><span>{lojaPreview.nome}</span></div>
+                {catalogo && <span className="v-cart-btn"><i className="fa-solid fa-bag-shopping" /> Sacola <span className="v-cart-count">0</span></span>}
+              </div>
+            </div>
+            <HeroLoja loja={lojaPreview} tema={tema} demo />
+            <div className="v-wrap" style={{ paddingBottom: '1rem' }}>
+              <div className="v-chips" style={{ margin: '0 0 0.25rem', padding: '0.6rem 0' }}>
+                <span className="v-chip active">Tudo</span>
+                <span className="v-chip">Categoria</span>
+              </div>
+              <div className={`v-grid ${tema.listagem === 'lista' && catalogo ? 'is-lista' : ''}`}>
+                {amostras.map((a) => (
+                  <article key={a.id} className="v-item">
+                    <div className="v-item-body">
+                      {a.tag && <span className="v-tag">{a.tag}</span>}
+                      <h3>{a.nome}</h3>
+                      {a.descricao && <p>{a.descricao}</p>}
+                    </div>
+                    <div className="v-item-foot">
+                      <span className="v-price">{moeda(a.preco)}</span>
+                      <span className="v-add">{catalogo ? <><i className="fa-solid fa-plus" /> Adicionar</> : 'Agendar'}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <div className="v-footer"><div className="v-wrap"><strong>{lojaPreview.nome}</strong> · Feito com ConectaLocal</div></div>
+          </TemaLoja>
+        </div>
+      </aside>
+    </form>
+  );
+}
+
+// ---------- Painel ----------
 export default function PainelAdmin() {
   const navigate = useNavigate();
   const {
-    lojas,
-    usuario,
-    minhaLoja,
-    carregando,
-    atualizarConfigLoja,
-    atualizarConfigAgenda,
-    cancelarAgendamento,
-    salvarProduto,
-    removerProduto,
-    adicionarCupom,
-    removerCupom,
-    adicionarProfissional,
-    removerProfissional,
-    sair
+    lojas, usuario, minhaLoja, carregando,
+    atualizarConfigLoja, atualizarConfigAgenda, cancelarAgendamento,
+    salvarProduto, removerProduto, adicionarCupom, removerCupom,
+    adicionarProfissional, removerProfissional, sair
   } = useLojas();
 
   // O painel só edita a loja do usuário logado (sem fallback para loja de demonstração).
@@ -30,22 +272,22 @@ export default function PainelAdmin() {
   const loja = slugAtivo ? lojas[slugAtivo] : null;
 
   const [abaAtiva, setAbaAtiva] = useState('aparencia');
-  const [mensagemSalvo, setMensagemSalvo] = useState('');
-  const [mensagemErro, setMensagemErro] = useState(false);
+  const [aviso, setAviso] = useState(null); // { texto, erro }
+  const [salvando, setSalvando] = useState(false);
 
-  // Estados de Produtos/Serviços
+  // Produtos/Serviços
   const [novoNome, setNovoNome] = useState('');
   const [novaDescricao, setNovaDescricao] = useState('');
   const [novoPreco, setNovoPreco] = useState('');
   const [novaDuracao, setNovaDuracao] = useState('30');
   const [novaCategoria, setNovaCategoria] = useState('');
 
-  // Estados de Profissionais (Modo Agendamento)
+  // Profissionais (modo agendamento)
   const [nomeProfissional, setNomeProfissional] = useState('');
   const [especialidadeProf, setEspecialidadeProf] = useState('');
   const [agendamentos, setAgendamentos] = useState([]);
 
-  // Estados de Cupom
+  // Cupons
   const [codigoCupom, setCodigoCupom] = useState('');
   const [descontoCupom, setDescontoCupom] = useState('');
 
@@ -73,7 +315,7 @@ export default function PainelAdmin() {
   }, [loja]);
 
   if (carregando) {
-    return <div style={{ padding: '4rem', textAlign: 'center' }}>Carregando painel...</div>;
+    return <div className="v-notfound">Carregando painel...</div>;
   }
 
   if (!usuario) {
@@ -82,20 +324,22 @@ export default function PainelAdmin() {
 
   if (!loja) {
     return (
-      <div style={{ padding: '4rem', textAlign: 'center' }}>
-        <h2>Nenhuma loja encontrada para esta conta</h2>
-        <Link to="/login">Voltar ao login</Link>
+      <div className="v-notfound">
+        <div>
+          <h1>Nenhuma loja encontrada para esta conta</h1>
+          <p style={{ color: 'var(--muted)', margin: '0.5rem 0 1.25rem' }}>Se você acabou de se cadastrar, confirme seu e-mail e entre novamente.</p>
+          <Link to="/login" className="btn btn-primary">Voltar ao login</Link>
+        </div>
       </div>
     );
   }
 
   const notificar = (texto, erro = false) => {
-    setMensagemErro(erro);
-    setMensagemSalvo(texto);
-    setTimeout(() => setMensagemSalvo(''), erro ? 5000 : 2500);
+    setAviso({ texto, erro });
+    setTimeout(() => setAviso(null), erro ? 5000 : 2500);
   };
 
-  // Executa a ação e mostra sucesso OU erro (antes, o aviso de sucesso aparecia mesmo se o banco recusasse).
+  // Executa a ação e mostra sucesso OU erro (o aviso de sucesso nunca aparece se o banco recusar).
   const executar = async (acao, msgOk) => {
     try {
       await acao();
@@ -108,22 +352,10 @@ export default function PainelAdmin() {
     }
   };
 
-  const handleSalvarAparencia = async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    const corPrimaria = form.get('corPrimaria');
-    await executar(
-      () =>
-        atualizarConfigLoja(slugAtivo, {
-          nome: form.get('nome'),
-          subtitulo: form.get('subtitulo'),
-          telefone: normalizarTelefone(form.get('telefone')),
-          modo: form.get('modo'),
-          corPrimaria,
-          corSecundaria: escurecerCor(corPrimaria)
-        }),
-      'Configurações salvas!'
-    );
+  const salvarAparencia = async (dados) => {
+    setSalvando(true);
+    await executar(() => atualizarConfigLoja(slugAtivo, dados), 'Aparência salva! Sua vitrine já está atualizada.');
+    setSalvando(false);
   };
 
   const handleCriarItem = async (e) => {
@@ -206,297 +438,200 @@ export default function PainelAdmin() {
     if (window.confirm(texto)) executar(acao, msgOk);
   };
 
+  const copiarLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/${loja.slug}`);
+      notificar('Link da sua vitrine copiado!');
+    } catch {
+      notificar('Não foi possível copiar. Selecione o link manualmente.', true);
+    }
+  };
+
   const handleLogout = async () => {
     await sair();
     navigate('/login');
   };
 
   const isAgendamento = loja.modo === 'agendamento';
+  const futuros = agendamentos.filter((a) => a.status === 'confirmado' && new Date(a.data_horario) > new Date()).length;
+
+  const secoes = [
+    { id: 'aparencia', icone: 'fa-palette', rotulo: 'Aparência', titulo: 'Aparência da vitrine', sub: 'Personalize cores, fonte, capa e informações. Veja o resultado ao vivo.' },
+    { id: 'produtos', icone: isAgendamento ? 'fa-scissors' : 'fa-utensils', rotulo: isAgendamento ? 'Serviços' : 'Cardápio', titulo: isAgendamento ? 'Serviços e preços' : 'Cardápio e preços', sub: 'Cadastre o que você oferece.' },
+    ...(isAgendamento
+      ? [
+          { id: 'equipe', icone: 'fa-users', rotulo: 'Equipe', titulo: 'Equipe', sub: 'Profissionais que aparecem na hora do agendamento.' },
+          { id: 'agenda', icone: 'fa-calendar-check', rotulo: 'Agenda', count: futuros, titulo: 'Agenda', sub: 'Horários marcados pelos seus clientes.' },
+          { id: 'horarios', icone: 'fa-clock', rotulo: 'Horários', titulo: 'Horários de atendimento', sub: 'Dias, expediente e pausas da sua agenda.' }
+        ]
+      : []),
+    { id: 'cupons', icone: 'fa-ticket', rotulo: 'Cupons', titulo: 'Cupons de desconto', sub: 'Códigos promocionais para seus clientes.' }
+  ];
+  const secao = secoes.find((s) => s.id === abaAtiva) || secoes[0];
+
+  const stats = isAgendamento
+    ? [
+        { r: 'Horários futuros', v: futuros },
+        { r: 'Serviços', v: (loja.produtos || []).length },
+        { r: 'Profissionais', v: (loja.profissionais || []).length }
+      ]
+    : [
+        { r: 'Itens no cardápio', v: (loja.produtos || []).length },
+        { r: 'Categorias', v: (loja.categorias || []).length },
+        { r: 'Cupons ativos', v: (loja.cupons || []).length }
+      ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f5f4', color: '#1c1917' }}>
-      {/* TOPO DO PAINEL */}
-      <header style={{ background: '#1c1917', color: '#fff', padding: '1rem 2rem' }}>
-        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <strong style={{ fontSize: '1.2rem' }}>ConectaLocal · {loja.nome}</strong>
-            <span style={{ display: 'block', fontSize: '0.8rem', color: '#a8a29e' }}>
-              {usuario ? `Logado como ${usuario.email}` : 'Sem sessão'} · Link: /{loja.slug}
-            </span>
-          </div>
+    <div className="adm">
+      <aside className="adm-side">
+        <Link to="/" className="adm-brand">
+          <img src="/logotipo.png" alt="" /> ConectaLocal
+        </Link>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Link
-              to={`/${loja.slug}`}
-              target="_blank"
-              style={{
-                background: loja.corPrimaria,
-                color: '#fff',
-                padding: '0.55rem 1.2rem',
-                borderRadius: '9999px',
-                textDecoration: 'none',
-                fontWeight: 600,
-                fontSize: '0.9rem'
-              }}
-            >
-              Ver Vitrine Ao Vivo ↗
-            </Link>
-
-            {usuario && (
-              <button
-                onClick={handleLogout}
-                style={{ background: '#292524', color: '#d6d3d1', border: '1px solid #44403c', padding: '0.55rem 1rem', borderRadius: '9999px', cursor: 'pointer', fontSize: '0.85rem' }}
-              >
-                Sair
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="container" style={{ padding: '2.5rem 2rem' }}>
-        {mensagemSalvo && (
-          <div style={{ background: mensagemErro ? '#b91c1c' : '#16a34a', color: '#fff', padding: '0.85rem 1.25rem', borderRadius: '0.75rem', marginBottom: '1.5rem', fontWeight: 600 }}>
-            {mensagemErro ? '⚠' : '✓'} {mensagemSalvo}
-          </div>
-        )}
-
-        {/* ABAS */}
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setAbaAtiva('aparencia')}
-            style={{
-              padding: '0.75rem 1.4rem',
-              borderRadius: '9999px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              background: abaAtiva === 'aparencia' ? '#1c1917' : '#e7e5e4',
-              color: abaAtiva === 'aparencia' ? '#fff' : '#44403c'
-            }}
-          >
-            1. Identidade & Modo
-          </button>
-
-          <button
-            onClick={() => setAbaAtiva('produtos')}
-            style={{
-              padding: '0.75rem 1.4rem',
-              borderRadius: '9999px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              background: abaAtiva === 'produtos' ? '#1c1917' : '#e7e5e4',
-              color: abaAtiva === 'produtos' ? '#fff' : '#44403c'
-            }}
-          >
-            {isAgendamento ? '2. Serviços & Preços' : '2. Cardápio & Preços'}
-          </button>
-
-          {isAgendamento && (
-            <>
-              <button
-                onClick={() => setAbaAtiva('equipe')}
-                style={{
-                  padding: '0.75rem 1.4rem',
-                  borderRadius: '9999px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  background: abaAtiva === 'equipe' ? '#1c1917' : '#e7e5e4',
-                  color: abaAtiva === 'equipe' ? '#fff' : '#44403c'
-                }}
-              >
-                3. Barbeiros / Equipe
-              </button>
-
-              <button
-                onClick={() => setAbaAtiva('agenda')}
-                style={{
-                  padding: '0.75rem 1.4rem',
-                  borderRadius: '9999px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  background: abaAtiva === 'agenda' ? '#1c1917' : '#e7e5e4',
-                  color: abaAtiva === 'agenda' ? '#fff' : '#44403c'
-                }}
-              >
-                4. Agenda ({agendamentos.filter((a) => a.status === 'confirmado').length})
-              </button>
-
-              <button
-                onClick={() => setAbaAtiva('horarios')}
-                style={{
-                  padding: '0.75rem 1.4rem',
-                  borderRadius: '9999px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  background: abaAtiva === 'horarios' ? '#1c1917' : '#e7e5e4',
-                  color: abaAtiva === 'horarios' ? '#fff' : '#44403c'
-                }}
-              >
-                5. Horários de Atendimento
-              </button>
-            </>
-          )}
-
-          <button
-            onClick={() => setAbaAtiva('cupons')}
-            style={{
-              padding: '0.75rem 1.4rem',
-              borderRadius: '9999px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              background: abaAtiva === 'cupons' ? '#1c1917' : '#e7e5e4',
-              color: abaAtiva === 'cupons' ? '#fff' : '#44403c'
-            }}
-          >
-            Cupons
-          </button>
+        <div className="adm-store">
+          <strong>{loja.nome}</strong>
+          <span>/{loja.slug}</span>
         </div>
 
-        {/* ABA 1: APARÊNCIA */}
-        {abaAtiva === 'aparencia' && (
-          <form onSubmit={handleSalvarAparencia} className="checkout-card" style={{ maxWidth: '600px', background: '#fff' }}>
-            <h3>Configurações do Estabelecimento</h3>
-            <label className="field">
-              <span>Modo de Funcionamento</span>
-              <select
-                name="modo"
-                defaultValue={loja.modo || 'catalogo'}
-                style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid #d6d3d1', fontWeight: 600 }}
-              >
-                <option value="catalogo">Cardápio / Catálogo (Pedidos com Sacola)</option>
-                <option value="agendamento">Agendamento (Escolha de Profissional + Horário)</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>Nome do Estabelecimento</span>
-              <input name="nome" defaultValue={loja.nome} required />
-            </label>
-            <label className="field">
-              <span>Subtítulo / Slogan</span>
-              <input name="subtitulo" defaultValue={loja.subtitulo} />
-            </label>
-            <label className="field">
-              <span>WhatsApp (com DDD)</span>
-              <input name="telefone" defaultValue={loja.telefone} required />
-            </label>
-            <label className="field">
-              <span>Cor Principal</span>
-              <input type="color" name="corPrimaria" defaultValue={loja.corPrimaria} style={{ width: '60px', height: '42px', cursor: 'pointer' }} />
-            </label>
-            <button type="submit" className="btn-primary" style={{ border: 'none', cursor: 'pointer', marginTop: '1rem' }}>
-              Salvar Alterações
+        <nav className="adm-nav" aria-label="Seções do painel">
+          {secoes.map((s) => (
+            <button key={s.id} className={abaAtiva === s.id ? 'active' : ''} onClick={() => setAbaAtiva(s.id)}>
+              <i className={`fa-solid ${s.icone}`} /> {s.rotulo}
+              {s.count > 0 && <span className="count">{s.count}</span>}
             </button>
-          </form>
+          ))}
+        </nav>
+
+        <div className="adm-side-foot">
+          <button className="btn btn-sm btn-primary" onClick={copiarLink}><i className="fa-solid fa-link" /> Copiar link</button>
+          <Link to={`/${loja.slug}`} target="_blank" className="btn btn-sm btn-ghost" style={{ color: '#e7e5e4', borderColor: '#44403c' }}>
+            <i className="fa-solid fa-arrow-up-right-from-square" /> Ver vitrine
+          </Link>
+          <button className="btn btn-sm btn-ghost" style={{ color: '#a8a29e', borderColor: '#44403c' }} onClick={handleLogout}>
+            <i className="fa-solid fa-right-from-bracket" /> Sair
+          </button>
+        </div>
+      </aside>
+
+      <main className="adm-main">
+        <div className="adm-head">
+          <div>
+            <h1>{secao.titulo}</h1>
+            <p>{secao.sub}</p>
+          </div>
+        </div>
+
+        {abaAtiva !== 'aparencia' && (
+          <div className="stat-grid">
+            {stats.map((s) => (
+              <div key={s.r} className="stat"><small>{s.r}</small><strong>{s.v}</strong></div>
+            ))}
+          </div>
         )}
 
-        {/* ABA 2: PRODUTOS OU SERVIÇOS */}
+        {/* APARÊNCIA */}
+        {abaAtiva === 'aparencia' && <AbaAparencia key={loja.id} loja={loja} onSalvar={salvarAparencia} salvando={salvando} />}
+
+        {/* PRODUTOS OU SERVIÇOS */}
         {abaAtiva === 'produtos' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '2rem', alignItems: 'start' }}>
-            <form onSubmit={handleCriarItem} className="checkout-card" style={{ background: '#fff' }}>
-              <h3>{isAgendamento ? 'Novo Serviço' : 'Novo Produto'}</h3>
+          <div className="split">
+            <form onSubmit={handleCriarItem} className="card">
+              <h3>{isAgendamento ? 'Novo serviço' : 'Novo produto'}</h3>
               <label className="field">
                 <span>Categoria</span>
-                <select
-                  value={novaCategoria}
-                  onChange={(e) => setNovaCategoria(e.target.value)}
-                  style={{ padding: '0.7rem', borderRadius: '0.6rem', border: '1px solid #d6d3d1' }}
-                >
+                <select value={novaCategoria} onChange={(e) => setNovaCategoria(e.target.value)}>
                   {(loja.categorias || []).map((c) => (
                     <option key={c.id} value={c.id}>{c.nome}</option>
                   ))}
                 </select>
               </label>
               <label className="field">
-                <span>{isAgendamento ? 'Nome do Corte / Serviço' : 'Nome do Produto'}</span>
-                <input value={novoNome} onChange={(e) => setNovoNome(e.target.value)} placeholder={isAgendamento ? 'Ex: Corte Degradê + Barba' : 'Ex: Combo Especial'} required />
+                <span>{isAgendamento ? 'Nome do serviço' : 'Nome do produto'}</span>
+                <input value={novoNome} onChange={(e) => setNovoNome(e.target.value)} placeholder={isAgendamento ? 'Ex: Corte degradê + barba' : 'Ex: Combo especial'} maxLength={80} required />
               </label>
               <label className="field">
                 <span>Descrição</span>
-                <input value={novaDescricao} onChange={(e) => setNovaDescricao(e.target.value)} placeholder="Detalhes opcionais" />
+                <input value={novaDescricao} onChange={(e) => setNovaDescricao(e.target.value)} placeholder="Detalhes opcionais" maxLength={200} />
               </label>
               <label className="field">
                 <span>Preço (R$)</span>
-                <input type="number" step="0.01" value={novoPreco} onChange={(e) => setNovoPreco(e.target.value)} placeholder="45.00" required />
+                <input type="number" step="0.01" min="0" value={novoPreco} onChange={(e) => setNovoPreco(e.target.value)} placeholder="45.00" required />
               </label>
               {isAgendamento && (
                 <label className="field">
-                  <span>Duração Estimada (minutos)</span>
-                  <select value={novaDuracao} onChange={(e) => setNovaDuracao(e.target.value)} style={{ padding: '0.7rem', borderRadius: '0.6rem', border: '1px solid #d6d3d1' }}>
+                  <span>Duração estimada</span>
+                  <select value={novaDuracao} onChange={(e) => setNovaDuracao(e.target.value)}>
                     <option value="30">30 minutos</option>
                     <option value="45">45 minutos</option>
                     <option value="60">1 hora</option>
+                    <option value="90">1 hora e 30 minutos</option>
+                    <option value="120">2 horas</option>
                   </select>
                 </label>
               )}
-              <button type="submit" className="btn-primary" style={{ border: 'none', cursor: 'pointer', width: '100%' }}>
-                + Cadastrar
-              </button>
+              <button type="submit" className="btn btn-primary btn-block">+ Cadastrar</button>
             </form>
 
-            <div className="checkout-card" style={{ background: '#fff' }}>
+            <div className="card">
               <h3>Cadastrados ({(loja.produtos || []).length})</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                {(loja.produtos || []).map((prod) => (
-                  <div key={prod.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', border: '1px solid #e7e5e4', borderRadius: '0.75rem' }}>
-                    <div>
-                      <strong>{prod.nome}</strong>
-                      <p style={{ fontSize: '0.85rem', color: '#78716c', margin: 0 }}>{prod.descricao}</p>
+              {(loja.produtos || []).length === 0 ? (
+                <p className="empty">Nada por aqui ainda. Cadastre o primeiro item ao lado.</p>
+              ) : (
+                <div className="list">
+                  {(loja.produtos || []).map((prod) => (
+                    <div key={prod.id} className="row">
+                      <div>
+                        <strong>{prod.nome}</strong>
+                        {prod.descricao && <small>{prod.descricao}</small>}
+                      </div>
+                      <div className="row-actions">
+                        <strong>{moeda(prod.preco)}</strong>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => confirmarRemocao(`Excluir "${prod.nome}"?`, () => removerProduto(slugAtivo, prod.id), 'Item excluído.')}
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <strong>R$ {Number(prod.preco).toFixed(2).replace('.', ',')}</strong>
-                      <button
-                        onClick={() => confirmarRemocao(`Excluir "${prod.nome}"?`, () => removerProduto(slugAtivo, prod.id), 'Item excluído.')}
-                        style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '0.45rem 0.75rem', borderRadius: '0.4rem', cursor: 'pointer' }}
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* ABA 3: EQUIPE / PROFISSIONAIS */}
+        {/* EQUIPE */}
         {abaAtiva === 'equipe' && isAgendamento && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '2rem', alignItems: 'start', maxWidth: '900px' }}>
-            <form onSubmit={handleCriarProfissional} className="checkout-card" style={{ background: '#fff' }}>
-              <h3>Cadastrar Profissional</h3>
+          <div className="split">
+            <form onSubmit={handleCriarProfissional} className="card">
+              <h3>Cadastrar profissional</h3>
               <label className="field">
-                <span>Nome do Barbeiro / Profissional</span>
-                <input value={nomeProfissional} onChange={(e) => setNomeProfissional(e.target.value)} placeholder="Ex: Lucas Silva" required />
+                <span>Nome</span>
+                <input value={nomeProfissional} onChange={(e) => setNomeProfissional(e.target.value)} placeholder="Ex: Lucas Silva" maxLength={60} required />
               </label>
               <label className="field">
                 <span>Especialidade</span>
-                <input value={especialidadeProf} onChange={(e) => setEspecialidadeProf(e.target.value)} placeholder="Ex: Barba & Degradê" />
+                <input value={especialidadeProf} onChange={(e) => setEspecialidadeProf(e.target.value)} placeholder="Ex: Barba e degradê" maxLength={60} />
               </label>
-              <button type="submit" className="btn-primary" style={{ border: 'none', cursor: 'pointer', width: '100%' }}>
-                + Adicionar à Equipe
-              </button>
+              <button type="submit" className="btn btn-primary btn-block">+ Adicionar à equipe</button>
             </form>
 
-            <div className="checkout-card" style={{ background: '#fff' }}>
-              <h3>Equipe Ativa ({(loja.profissionais || []).length})</h3>
+            <div className="card">
+              <h3>Equipe ({(loja.profissionais || []).length})</h3>
               {(loja.profissionais || []).length === 0 ? (
-                <p style={{ color: '#78716c' }}>Cadastre pelo menos 1 profissional para liberar a agenda na vitrine.</p>
+                <p className="empty">Cadastre pelo menos 1 profissional para liberar a agenda na vitrine.</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div className="list">
                   {loja.profissionais.map((prof) => (
-                    <div key={prof.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem', border: '1px solid #e7e5e4', borderRadius: '0.6rem' }}>
+                    <div key={prof.id} className="row">
                       <div>
                         <strong>{prof.nome}</strong>
-                        <span style={{ display: 'block', fontSize: '0.85rem', color: '#78716c' }}>{prof.especialidade}</span>
+                        <small>{prof.especialidade}</small>
                       </div>
                       <button
+                        className="btn btn-danger btn-sm"
                         onClick={() => confirmarRemocao(`Remover ${prof.nome} da equipe?`, () => removerProfissional(loja.id, prof.id), 'Profissional removido.')}
-                        style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '0.4rem 0.7rem', borderRadius: '0.4rem', cursor: 'pointer' }}
                       >
                         Remover
                       </button>
@@ -508,52 +643,34 @@ export default function PainelAdmin() {
           </div>
         )}
 
-        {/* ABA 4: AGENDA DO LOJISTA */}
+        {/* AGENDA DO LOJISTA */}
         {abaAtiva === 'agenda' && isAgendamento && (
-          <div className="checkout-card" style={{ background: '#fff', maxWidth: '850px' }}>
-            <h3>Horários Agendados</h3>
+          <div className="card">
+            <h3>Horários agendados</h3>
             {agendamentos.length === 0 ? (
-              <p style={{ color: '#78716c' }}>Nenhum cliente agendou horário ainda.</p>
+              <p className="empty">Nenhum cliente agendou horário ainda. Compartilhe o link da sua vitrine!</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div className="list">
                 {agendamentos.map((ag) => (
-                  <div key={ag.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', border: '1px solid #e7e5e4', borderRadius: '0.75rem' }}>
+                  <div key={ag.id} className="row">
                     <div>
-                      <strong>{new Date(ag.data_horario).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</strong>
-                      <span style={{ marginLeft: '0.75rem', fontWeight: 600 }}>{ag.cliente_nome}</span>
-                      <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: '#57534e' }}>
-                        Serviço: {ag.itens?.nome} · Profissional: {ag.profissionais?.nome} · Tel: {ag.cliente_telefone}
-                      </p>
+                      <strong>{fmtData(ag.data_horario)} às {horaSP(ag.data_horario)} · {ag.cliente_nome}</strong>
+                      <small>
+                        {ag.itens?.nome || 'Serviço'} com {ag.profissionais?.nome || 'profissional'} · {ag.cliente_telefone}
+                      </small>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      <span
-                        style={{
-                          background: ag.status === 'confirmado' ? '#dcfce7' : '#f5f5f4',
-                          color: ag.status === 'confirmado' ? '#15803d' : '#78716c',
-                          padding: '0.3rem 0.75rem',
-                          borderRadius: '9999px',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          textTransform: 'capitalize'
-                        }}
-                      >
-                        {ag.status || 'confirmado'}
-                      </span>
+                    <div className="row-actions">
+                      <span className={`pill ${ag.status === 'confirmado' ? 'pill-ok' : 'pill-off'}`}>{ag.status || 'confirmado'}</span>
                       <a
+                        className="btn btn-soft btn-sm"
                         href={`https://wa.me/${normalizarTelefone(ag.cliente_telefone)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ fontSize: '0.8rem', fontWeight: 600, color: '#15803d' }}
                       >
-                        WhatsApp
+                        <i className="fa-brands fa-whatsapp" /> WhatsApp
                       </a>
                       {ag.status === 'confirmado' && (
-                        <button
-                          onClick={() => handleCancelarAgendamento(ag)}
-                          style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '0.35rem 0.7rem', borderRadius: '0.4rem', cursor: 'pointer', fontSize: '0.8rem' }}
-                        >
-                          Cancelar
-                        </button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleCancelarAgendamento(ag)}>Cancelar</button>
                       )}
                     </div>
                   </div>
@@ -563,21 +680,21 @@ export default function PainelAdmin() {
           </div>
         )}
 
-        {/* ABA HORÁRIOS DE ATENDIMENTO */}
+        {/* HORÁRIOS DE ATENDIMENTO */}
         {abaAtiva === 'horarios' && isAgendamento && (() => {
           const cfg = configAgenda(loja);
           return (
-            <form onSubmit={handleSalvarHorarios} className="checkout-card" style={{ maxWidth: '600px', background: '#fff' }}>
-              <h3>Horários de Atendimento</h3>
-              <p style={{ color: '#78716c', fontSize: '0.9rem', margin: '0 0 1rem' }}>
+            <form onSubmit={handleSalvarHorarios} className="card" style={{ maxWidth: 640 }}>
+              <h3>Quando você atende</h3>
+              <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '1.1rem' }}>
                 É o que seus clientes enxergam na hora de agendar. A duração de cada serviço é respeitada automaticamente.
               </p>
 
               <div className="field">
                 <span>Dias de atendimento</span>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div className="days">
                   {DIAS_SEMANA.map((nome, i) => (
-                    <label key={nome} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                    <label key={nome} className="day">
                       <input type="checkbox" name="dias" value={i} defaultChecked={cfg.dias.includes(i)} />
                       {nome}
                     </label>
@@ -585,32 +702,16 @@ export default function PainelAdmin() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <label className="field">
-                  <span>Abre às</span>
-                  <input type="time" name="inicio" defaultValue={cfg.inicio} required />
-                </label>
-                <label className="field">
-                  <span>Fecha às</span>
-                  <input type="time" name="fim" defaultValue={cfg.fim} required />
-                </label>
-                <label className="field">
-                  <span>Pausa (almoço) das</span>
-                  <input type="time" name="pausaInicio" defaultValue={cfg.pausaInicio} />
-                </label>
-                <label className="field">
-                  <span>até</span>
-                  <input type="time" name="pausaFim" defaultValue={cfg.pausaFim} />
-                </label>
+              <div className="field-row">
+                <label className="field"><span>Abre às</span><input type="time" name="inicio" defaultValue={cfg.inicio} required /></label>
+                <label className="field"><span>Fecha às</span><input type="time" name="fim" defaultValue={cfg.fim} required /></label>
+                <label className="field"><span>Pausa (almoço) das</span><input type="time" name="pausaInicio" defaultValue={cfg.pausaInicio} /></label>
+                <label className="field"><span>até</span><input type="time" name="pausaFim" defaultValue={cfg.pausaFim} /></label>
               </div>
 
               <label className="field">
                 <span>Intervalo entre horários</span>
-                <select
-                  name="intervalo"
-                  defaultValue={cfg.intervalo}
-                  style={{ padding: '0.7rem', borderRadius: '0.6rem', border: '1px solid #d6d3d1' }}
-                >
+                <select name="intervalo" defaultValue={cfg.intervalo}>
                   <option value="15">15 minutos</option>
                   <option value="30">30 minutos</option>
                   <option value="45">45 minutos</option>
@@ -618,43 +719,55 @@ export default function PainelAdmin() {
                 </select>
               </label>
 
-              <button type="submit" className="btn-primary" style={{ border: 'none', cursor: 'pointer', marginTop: '1rem' }}>
-                Salvar Horários
-              </button>
+              <button type="submit" className="btn btn-primary">Salvar horários</button>
             </form>
           );
         })()}
 
-        {/* ABA CUPONS */}
+        {/* CUPONS */}
         {abaAtiva === 'cupons' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', alignItems: 'start', maxWidth: '900px' }}>
-            <form onSubmit={handleCriarCupom} className="checkout-card" style={{ background: '#fff' }}>
-              <h3>Criar Novo Cupom</h3>
+          <div className="split">
+            <form onSubmit={handleCriarCupom} className="card">
+              <h3>Novo cupom</h3>
               <label className="field">
-                <span>Código do Cupom</span>
-                <input value={codigoCupom} onChange={(e) => setCodigoCupom(e.target.value.toUpperCase())} placeholder="Ex: CORTE10" required />
+                <span>Código</span>
+                <input value={codigoCupom} onChange={(e) => setCodigoCupom(e.target.value.toUpperCase())} placeholder="Ex: PRIMEIRA10" maxLength={30} required />
               </label>
               <label className="field">
                 <span>Desconto (%)</span>
                 <input type="number" min="1" max="100" value={descontoCupom} onChange={(e) => setDescontoCupom(e.target.value)} placeholder="10" required />
               </label>
-              <button type="submit" className="btn-primary" style={{ border: 'none', cursor: 'pointer', width: '100%' }}>
-                Criar Cupom
-              </button>
+              <button type="submit" className="btn btn-primary btn-block">Ativar cupom</button>
             </form>
 
-            <div className="checkout-card" style={{ background: '#fff' }}>
-              <h3>Cupons Ativos</h3>
-              {(loja.cupons || []).map((c) => (
-                <div key={c.codigo} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', border: '1px dashed #a8a29e', borderRadius: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span><strong>{c.codigo}</strong> — {c.desconto_percentual || c.descontoPercentual}% OFF</span>
-                  <button onClick={() => confirmarRemocao(`Remover o cupom ${c.codigo}?`, () => removerCupom(slugAtivo, c.codigo), 'Cupom removido.')} style={{ color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer' }}>Remover</button>
+            <div className="card">
+              <h3>Cupons ativos ({(loja.cupons || []).length})</h3>
+              {(loja.cupons || []).length === 0 ? (
+                <p className="empty">Nenhum cupom criado ainda.</p>
+              ) : (
+                <div className="list">
+                  {(loja.cupons || []).map((c) => (
+                    <div key={c.codigo} className="row">
+                      <div>
+                        <strong>{c.codigo}</strong>
+                        <small>{c.desconto_percentual ?? c.descontoPercentual}% de desconto</small>
+                      </div>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => confirmarRemocao(`Remover o cupom ${c.codigo}?`, () => removerCupom(slugAtivo, c.codigo), 'Cupom removido.')}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
       </main>
+
+      {aviso && <div className={`toast-admin ${aviso.erro ? 'err' : 'ok'}`} role="status">{aviso.erro ? '⚠ ' : '✓ '}{aviso.texto}</div>}
     </div>
   );
 }

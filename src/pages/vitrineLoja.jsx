@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useLojas } from '../context/lojaContext';
 import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
+import { lerTema } from '../lib/tema';
 import AgendaBarbearia from '../components/agendaBarbearia';
+import TemaLoja from '../components/TemaLoja';
+import HeroLoja from '../components/HeroLoja';
+
+const formatarMoeda = (valor) => 'R$ ' + Number(valor).toFixed(2).replace('.', ',');
 
 export default function VitrineLoja() {
   const { slug } = useParams();
@@ -34,32 +39,29 @@ export default function VitrineLoja() {
 
   useEffect(() => {
     if (!loja) return;
-    const raiz = document.documentElement;
-    if (loja.corPrimaria) raiz.style.setProperty('--amber-600', loja.corPrimaria);
-    if (loja.corSecundaria) raiz.style.setProperty('--amber-700', loja.corSecundaria);
     document.title = `${loja.nome} | ConectaLocal`;
-
-    // Ao sair da vitrine, devolve as cores e o título padrão (senão vazam para login/landing).
     return () => {
-      raiz.style.removeProperty('--amber-600');
-      raiz.style.removeProperty('--amber-700');
       document.title = 'ConectaLocal';
     };
   }, [loja]);
 
   if (carregando || (buscando && !loja)) {
-    return <div style={{ padding: '5rem', textAlign: 'center' }}>Carregando vitrine...</div>;
+    return <div className="v-notfound">Carregando vitrine...</div>;
   }
 
   if (!loja) {
     return (
-      <div style={{ padding: '5rem', textAlign: 'center' }}>
-        <h2>Loja não encontrada</h2>
-        <p>Verifique o link digitado.</p>
+      <div className="v-notfound">
+        <div>
+          <h1>Loja não encontrada</h1>
+          <p style={{ color: 'var(--muted)', margin: '0.5rem 0 1.25rem' }}>Verifique o link digitado.</p>
+          <Link to="/" className="btn btn-primary">Ir para o início</Link>
+        </div>
       </div>
     );
   }
 
+  const tema = lerTema(loja);
   const isAgendamento = loja.modo === 'agendamento';
 
   const mostrarToast = (msg) => {
@@ -67,18 +69,12 @@ export default function VitrineLoja() {
     setTimeout(() => setAvisoToast(''), 2500);
   };
 
-  const formatarMoeda = (valor) => {
-    return 'R$ ' + Number(valor).toFixed(2).replace('.', ',');
-  };
-
   const adicionarItem = (nome, preco, opcao = '') => {
     const id = `${nome}|${opcao}`.toLowerCase();
     setSacola((prev) => {
       const existente = prev.find((i) => i.id === id);
       if (existente) {
-        return prev.map((i) =>
-          i.id === id ? { ...i, quantidade: Math.min(i.quantidade + 1, 20) } : i
-        );
+        return prev.map((i) => (i.id === id ? { ...i, quantidade: Math.min(i.quantidade + 1, 20) } : i));
       }
       return [...prev, { id, nome, opcao, preco, quantidade: 1 }];
     });
@@ -88,9 +84,7 @@ export default function VitrineLoja() {
   const alterarQuantidade = (id, delta) => {
     setSacola((prev) =>
       prev
-        .map((item) =>
-          item.id === id ? { ...item, quantidade: Math.min(item.quantidade + delta, 20) } : item
-        )
+        .map((item) => (item.id === id ? { ...item, quantidade: Math.min(item.quantidade + delta, 20) } : item))
         .filter((item) => item.quantidade > 0)
     );
   };
@@ -147,128 +141,116 @@ export default function VitrineLoja() {
       : (loja.categorias || []).filter((c) => c.id === categoriaAtiva);
 
   return (
-    <div>
-      {/* HEADER */}
-      <header className="header">
-        <div className="container nav-container">
-          <div className="logo-wrapper">
-            <img src={loja.logo} alt={loja.nome} className="brand-logo-img" />
-            <div className="brand-text-container">
-              <span className="logo-title">{loja.nome}</span>
-              <span className="logo-subtitle">{loja.subtitulo}</span>
-            </div>
+    <TemaLoja tema={tema} corPrimaria={loja.corPrimaria} corSecundaria={loja.corSecundaria}>
+      {/* TOPO FIXO */}
+      <header className="v-topbar">
+        <div className="v-wrap v-topbar-in">
+          <div className="v-brand">
+            <img src={loja.logo} alt="" />
+            <span>{loja.nome}</span>
           </div>
 
-          {/* Só mostra o botão da sacola se NÃO for modo agendamento */}
           {!isAgendamento && (
-            <div className="nav-action">
-              <button onClick={() => setSacolaAberta(true)} className="cart-btn-nav" title="Sua Sacola">
-                <i className="fa-solid fa-bag-shopping"></i>
-                <span className="cart-count">{totalItens}</span>
-              </button>
-            </div>
+            <button onClick={() => setSacolaAberta(true)} className="v-cart-btn" aria-label="Abrir sacola">
+              <i className="fa-solid fa-bag-shopping" />
+              Sacola
+              <span className="v-cart-count">{totalItens}</span>
+            </button>
           )}
         </div>
       </header>
 
-      {/* CORPO DA VITRINE */}
-      <section className="menu-section">
-        <div className="container">
-          <div className="section-title">
-            <h2>{isAgendamento ? 'Agendamento Online' : 'Cardápio Oficial Completo'}</h2>
-            <p>
-              {isAgendamento
-                ? `Escolha o serviço, o profissional e o melhor horário em ${loja.nome}.`
-                : `Selecione uma categoria abaixo para explorar os itens de ${loja.nome}.`}
-            </p>
-          </div>
+      <HeroLoja loja={loja} tema={tema} />
 
-          {/* AQUI ESTÁ A TROCA AUTOMÁTICA ENTRE BARBEARIA E RESTAURANTE */}
+      <main className="v-main">
+        <div className="v-wrap">
           {isAgendamento ? (
-            <AgendaBarbearia loja={loja} />
+            <>
+              <div className="v-section-head" style={{ textAlign: 'center' }}>
+                <h2>Agende seu horário</h2>
+                <p>Escolha o serviço, o profissional e o melhor horário.</p>
+              </div>
+              <AgendaBarbearia loja={loja} />
+            </>
           ) : (
             <>
-              {/* FILTROS */}
-              <div className="menu-filters">
-                <button
-                  className={`filter-btn ${categoriaAtiva === 'todos' ? 'active' : ''}`}
-                  onClick={() => setCategoriaAtiva('todos')}
-                >
-                  Ver Tudo
-                </button>
-                {(loja.categorias || []).map((cat) => (
-                  <button
-                    key={cat.id}
-                    className={`filter-btn ${categoriaAtiva === cat.id ? 'active' : ''}`}
-                    onClick={() => setCategoriaAtiva(cat.id)}
-                  >
-                    {cat.nome}
-                  </button>
-                ))}
+              <div className="v-section-head">
+                <h2>Cardápio</h2>
+                <p>Toque em adicionar para montar seu pedido e finalize pelo WhatsApp.</p>
               </div>
 
-              {/* LISTAGEM POR CATEGORIA */}
+              {(loja.categorias || []).length > 1 && (
+                <div className="v-chips" role="tablist">
+                  <button className={`v-chip ${categoriaAtiva === 'todos' ? 'active' : ''}`} onClick={() => setCategoriaAtiva('todos')}>
+                    Tudo
+                  </button>
+                  {(loja.categorias || []).map((cat) => (
+                    <button
+                      key={cat.id}
+                      className={`v-chip ${categoriaAtiva === cat.id ? 'active' : ''}`}
+                      onClick={() => setCategoriaAtiva(cat.id)}
+                    >
+                      {cat.nome}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {categoriasVisiveis.map((cat) => {
                 const produtosDaCategoria = (loja.produtos || []).filter((p) => p.categoriaId === cat.id);
                 if (produtosDaCategoria.length === 0) return null;
 
                 return (
-                  <div key={cat.id} className="menu-category-block active-category">
-                    <h3 className="category-heading">{cat.nome}</h3>
-                    <div className="menu-grid">
+                  <section key={cat.id}>
+                    <h3 className="v-cat-title">{cat.nome}</h3>
+                    <div className={`v-grid ${tema.listagem === 'lista' ? 'is-lista' : ''}`}>
                       {produtosDaCategoria.map((prod) => (
-                        <div key={prod.id} className="menu-card">
-                          <div className="menu-card-body">
-                            <span className="menu-category">{prod.tag}</span>
+                        <article key={prod.id} className="v-item">
+                          <div className="v-item-body">
+                            {prod.tag && <span className="v-tag">{prod.tag}</span>}
                             <h3>{prod.nome}</h3>
-                            <p>{prod.descricao}</p>
+                            {prod.descricao && <p>{prod.descricao}</p>}
                           </div>
 
                           {prod.opcoes ? (
-                            <div className="menu-footer menu-footer-options">
+                            <div className="v-options">
                               {prod.opcoes.map((opt, idx) => (
-                                <div key={idx} className="menu-option">
-                                  <span className="opt-label">{opt.label}</span>
-                                  <span className="price">{formatarMoeda(opt.preco)}</span>
-                                  <button
-                                    className="btn-add-cart"
-                                    onClick={() => adicionarItem(prod.nome, opt.preco, opt.label)}
-                                  >
-                                    <i className="fa-solid fa-plus"></i>
+                                <div key={idx} className="v-opt">
+                                  <span className="v-opt-label">{opt.label}</span>
+                                  <span className="v-price">{formatarMoeda(opt.preco)}</span>
+                                  <button className="v-add" onClick={() => adicionarItem(prod.nome, opt.preco, opt.label)} aria-label={`Adicionar ${opt.label}`}>
+                                    <i className="fa-solid fa-plus" />
                                   </button>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="menu-footer">
-                              <span className="price">{formatarMoeda(prod.preco)}</span>
-                              <button
-                                className="btn-add-cart"
-                                onClick={() => adicionarItem(prod.nome, prod.preco)}
-                              >
-                                <i className="fa-solid fa-plus"></i> Adicionar
+                            <div className="v-item-foot">
+                              <span className="v-price">{formatarMoeda(prod.preco)}</span>
+                              <button className="v-add" onClick={() => adicionarItem(prod.nome, prod.preco)}>
+                                <i className="fa-solid fa-plus" /> Adicionar
                               </button>
                             </div>
                           )}
-                        </div>
+                        </article>
                       ))}
                     </div>
-                  </div>
+                  </section>
                 );
               })}
             </>
           )}
         </div>
-      </section>
+      </main>
 
-      {/* GAVETA DA SACOLA (Apenas para modo catálogo) */}
+      {/* SACOLA (modo catálogo) */}
       {!isAgendamento && (
         <>
-          <div className={`cart-drawer ${sacolaAberta ? 'open' : ''}`}>
+          <aside className={`cart-drawer ${sacolaAberta ? 'open' : ''}`} aria-hidden={!sacolaAberta}>
             <div className="cart-header">
-              <h3>Sua Sacola</h3>
-              <button onClick={() => setSacolaAberta(false)} className="close-cart-btn">
-                <i className="fa-solid fa-xmark"></i>
+              <h3>Sua sacola</h3>
+              <button onClick={() => setSacolaAberta(false)} className="close-cart-btn" aria-label="Fechar sacola">
+                <i className="fa-solid fa-xmark" />
               </button>
             </div>
 
@@ -286,9 +268,9 @@ export default function VitrineLoja() {
                       <span>{formatarMoeda(item.preco * item.quantidade)}</span>
                     </div>
                     <div className="cart-item-controls">
-                      <button onClick={() => alterarQuantidade(item.id, -1)}>-</button>
+                      <button onClick={() => alterarQuantidade(item.id, -1)} aria-label="Diminuir">-</button>
                       <span>{item.quantidade}</span>
-                      <button onClick={() => alterarQuantidade(item.id, 1)}>+</button>
+                      <button onClick={() => alterarQuantidade(item.id, 1)} aria-label="Aumentar">+</button>
                     </div>
                   </div>
                 ))
@@ -296,67 +278,40 @@ export default function VitrineLoja() {
             </div>
 
             <div className="cart-footer">
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                <input
-                  type="text"
-                  placeholder="Cupom (ex: BEMVINDO10)"
-                  value={cupomInput}
-                  onChange={(e) => setCupomInput(e.target.value)}
-                  style={{
-                    flex: 1,
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '0.5rem',
-                    border: '1px solid #d6d3d1'
-                  }}
-                />
-                <button
-                  onClick={aplicarCupom}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.5rem',
-                    border: 'none',
-                    background: '#1c1917',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontWeight: 600
-                  }}
-                >
-                  Aplicar
-                </button>
+              <div className="coupon-row">
+                <input type="text" placeholder="Cupom de desconto" value={cupomInput} onChange={(e) => setCupomInput(e.target.value)} />
+                <button onClick={aplicarCupom} className="btn btn-soft btn-sm">Aplicar</button>
               </div>
 
               {cupomAplicado && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                  <span>Desconto ({cupomAplicado.codigo}):</span>
+                <div className="coupon-discount">
+                  <span>Desconto ({cupomAplicado.codigo})</span>
                   <span>- {formatarMoeda(valorDesconto)}</span>
                 </div>
               )}
 
               <div className="cart-total-line">
-                <span>Total:</span>
+                <span>Total</span>
                 <strong>{formatarMoeda(totalFinal)}</strong>
               </div>
 
-              <button onClick={finalizarWhatsApp} className="btn-checkout btn-checkout-wa">
-                <i className="fa-brands fa-whatsapp"></i> Finalizar Pedido via WhatsApp
+              <button onClick={finalizarWhatsApp} disabled={sacola.length === 0} className="btn btn-whats btn-block btn-lg">
+                <i className="fa-brands fa-whatsapp" /> Finalizar pedido no WhatsApp
               </button>
             </div>
-          </div>
+          </aside>
 
-          {sacolaAberta && <div className="cart-overlay open" onClick={() => setSacolaAberta(false)} />}
+          {sacolaAberta && <div className="cart-overlay" onClick={() => setSacolaAberta(false)} />}
         </>
       )}
 
-      {/* TOAST DE AVISO */}
-      <div className={`toast ${avisoToast ? 'show' : ''}`}>{avisoToast}</div>
+      <div className={`toast ${avisoToast ? 'show' : ''}`} role="status">{avisoToast}</div>
 
-      {/* FOOTER */}
-      <footer className="footer">
-        <div className="container footer-flex">
-          <p className="footer-logo">{loja.nome}</p>
-          <p className="footer-copy">&copy; 2026 ConectaLocal. Todos os direitos reservados.</p>
+      <footer className="v-footer">
+        <div className="v-wrap">
+          <strong>{loja.nome}</strong> · Feito com <Link to="/" style={{ color: 'inherit' }}>ConectaLocal</Link>
         </div>
       </footer>
-    </div>
+    </TemaLoja>
   );
 }
