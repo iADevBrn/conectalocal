@@ -282,6 +282,9 @@ export default function PainelAdmin() {
   const [novaDuracao, setNovaDuracao] = useState('30');
   const [novaCategoria, setNovaCategoria] = useState('');
 
+  // Derivado: primeira categoria disponível se não houver seleção manual
+  const categoriaDefault = novaCategoria || loja?.categorias?.[0]?.id || '';
+
   // Profissionais (modo agendamento)
   const [nomeProfissional, setNomeProfissional] = useState('');
   const [especialidadeProf, setEspecialidadeProf] = useState('');
@@ -290,12 +293,6 @@ export default function PainelAdmin() {
   // Cupons
   const [codigoCupom, setCodigoCupom] = useState('');
   const [descontoCupom, setDescontoCupom] = useState('');
-
-  useEffect(() => {
-    if (loja?.categorias?.length > 0 && !novaCategoria) {
-      setNovaCategoria(loja.categorias[0].id);
-    }
-  }, [loja, novaCategoria]);
 
   // Busca agendamentos reais do Supabase se a loja for modo 'agendamento'
   useEffect(() => {
@@ -369,7 +366,7 @@ export default function PainelAdmin() {
     const ok = await executar(
       () =>
         salvarProduto(slugAtivo, {
-          categoriaId: novaCategoria || loja.categorias[0]?.id,
+          categoriaId: categoriaDefault,
           tag: loja.modo === 'agendamento' ? `${novaDuracao} min` : 'Destaque',
           nome: novoNome,
           descricao: novaDescricao,

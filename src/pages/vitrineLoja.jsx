@@ -28,7 +28,6 @@ export default function VitrineLoja() {
   // Carrega só a loja do link (antes o app baixava todas as lojas de todos os clientes).
   useEffect(() => {
     let ativo = true;
-    setBuscando(true);
     carregarLojaPorSlug(chave).finally(() => {
       if (ativo) setBuscando(false);
     });
