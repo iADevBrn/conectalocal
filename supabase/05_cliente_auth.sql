@@ -376,11 +376,11 @@ create or replace function public.adicionar_endereco(
   p_apelido text,
   p_logradouro text,
   p_numero text,
-  p_complemento text default null,
   p_bairro text,
   p_cidade text,
   p_uf char(2),
   p_cep text,
+  p_complemento text default null,
   p_referencia text default null,
   p_padrao boolean default false
 )
