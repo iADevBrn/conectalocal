@@ -289,196 +289,36 @@ export default function PainelAdmin() {
   const [nomeProfissional, setNomeProfissional] = useState('');
   const [especialidadeProf, setEspecialidadeProf] = useState('');
   const [agendamentos, setAgendamentos] = useState([]);
+  const [codigoCupom, setCodigoCupom] = useState('');
+  const [descontoCupom, setDescontoCupom] = useState('');
 
-      { id: 'aparencia', icone: 'fa-palette', rotulo: 'Aparência', titulo: 'Aparência da vitrine', sub: 'Personalize cores, fonte, capa e textos de apresentação.' },
-    { id: 'produtos', icone: isAgendamento ? 'fa-scissors' : 'fa-utensils', rotulo: isAgendamento ? 'Serviços' : 'Cardápio', titulo: isAgendamento ? 'Serviços e preços' : 'Cardápio e preços', sub: 'Cadastre o que você oferece.' },
-    { id: 'pedidos', icone: 'fa-shopping-bag', rotulo: 'Pedidos', titulo: 'Histórico de pedidos', sub: 'Visualize e gerencie os pedidos do seu cliente.' },
-    ...(isAgendamento
-      ? [
-          { id: 'equipe', icone: 'fa-users', rotulo: 'Equipe', titulo: 'Equipe', sub: 'Profissionais que aparecem na hora do agendamento.' },
-          { id: 'agenda', icone: 'fa-calendar-check', rotulo: 'Agenda', count: futuros, titulo: 'Agenda', sub: 'Horários marcados pelos seus clientes.' },
-          { id: 'horarios', icone: 'fa-clock', rotulo: 'Horários', titulo: 'Horários de atendimento', sub: 'Dias, expediente e pausas da sua agenda.' }
-        ]
-      : []),
-    { id: 'cupons', icone: 'fa-ticket', rotulo: 'Cupons', titulo: 'Cupons de desconto', sub: 'Códigos promocionais para seus clientes.' }
-  ];
-  const secao = secoes.find((s) => s.id === abaAtiva) || secoes[0];
-  const stats = isAgendamento
-    ? [
-        { r: 'Horários futuros', v: futuros },
-        { r: 'Serviços', v: (loja.produtos || []).length },
-        { r: 'Profissionais', v: (loja.profissionais || []).length }
-      ]
-    : [
-        { r: 'Itens no cardápio', v: (loja.produtos || []).length },
-        { r: 'Categorias', v: (loja.categorias || []).length },
-        { r: 'Cupons ativos', v: (loja.cupons || []).length }
-      ];
+  useEffect(() => {
+    if (!loja?.id) {
+      return;
+    }
 
-  return (
-    <div className="adm">
-      <aside className="adm-side">
-        <Link to="/" className="adm-brand">
-          <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="white"/><path d="M10 17h14M17 10v14" stroke="#0a0a0a" stroke-width="3" stroke-linecap="round"/></svg> ConectaLocal
-        </Link>
+    let ativo = true;
+    supabase
+      .from('agendamentos')
+      .select('*')
+      .eq('loja_id', loja.id)
+      .order('data_horario', { ascending: true })
+      .then(({ data, error }) => {
+        if (!ativo) return;
+        if (error) {
+          console.error(error);
+          setAgendamentos([]);
+          return;
+        }
+        setAgendamentos(data || []);
+      });
 
-        <div className="adm-store">
-          <strong>{loja.nome}</strong>
-          <span>/{loja.slug}</span>
-        </div >
+    return () => {
+      ativo = false;
+    };
+  }, [loja?.id]);
 
-        <nav className="adm-nav" aria-label="Seções do painel">
-          {secoes.map((s) => (
-            <button key={s.id} className={abaAtiva === s.id ? 'active' : ''} onClick={() => setAbaAtiva(s.id)}>
-              <i className={`fa-solid ${s.icone}`} /> {s.rotulo}
-              {s.count > 0 && <span className="count">{s.count}</span>}
-            </button>
-          ))}
-        </nav>
-
-        <div className="adm-stats">
-          {stats.map((s) => (
-            <div key={s.r} className="adm-stat-item">
-              <span className="adm-stat-label">{s.r}</span>
-              <span className="adm-stat-value">{s.v}</span>
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      <main className="adm-main">
-        {abaAtiva === 'aparencia' && (
-          <div className="card">
-            <h2 className="adm-title">Aparência da vitrine</h2>
-            <p className="adm-sub">Personalize cores, fonte, capa e textos de apresentação.</p>
-            {/* Formulário de Aparência aqui */}
-            <form onSubmit={salvarAparencia}>
-              {/* ... campos de tema, fonte, capa ... */}
-              <button type="submit" className="btn btn-primary">Salvar Aparência</button>
-            </form>
-          </div>
-        )}
-        {abaAtiva === 'produtos' && (
-          <div className="card">
-            <h2 className="adm-title">{isAgendamento ? 'Serviços e preços' : 'Cardápio e preços'}</h2>
-            <p className="adm-sub">Cadastre o que você oferece.</p>
-            {/* Formulário de Produto/Serviço aqui */}
-            <form onSubmit={handleCriarItem}>
-              {/* ... campos de nome, descrição, preço, duração, categoria ... */}
-              <button type="submit" className="btn btn-primary">Cadastrar Item</button>
-            </form>
-          </div>
-        )}
-        {abaAtiva === 'equipe' && (
-          <div className="card">
-            <h2 className="adm-title">Equipe</h2>
-            <p className="adm-sub">Profissionais que aparecem na hora do agendamento.</p>
-            {/* Formulário de Profissional aqui */}
-            <form onSubmit={handleCriarProfissional}>
-              {/* ... campos de nome e especialidade ... */}
-              <button type="submit" className="btn btn-primary">Adicionar Profissional</button>
-            </form>
-          </div>
-        )}
-        {abaAtiva === 'agenda' && (
-          <div className="card">
-            <h2 className="adm-title">Agenda</h2>
-            <p className="adm-sub">Visualização dos horários marcados pelos seus clientes.</p>
-            {/* Tabela de agendamentos aqui */}
-            <div className="adm-table-container">
-              {agendamentos.length > 0 ? (
-                <table>
-                  <thead>
-                    <tr><th>Cliente</th><th>Data/Hora</th><th>Serviço</th><th>Status</th></tr>
-                  </thead>
-                  <tbody>
-                    {agendamentos.map((a) => (
-                      <tr key={a.id}>
-                        <td>{a.cliente_nome} ({a.cliente_telefone})</td>
-                        <td>{new Date(a.data_horario).toLocaleDateString('pt-BR')} {horaSP(a.data_horario)}</td>
-                        <td>{a.itens?.nome} ({a.itens?.preco})</td>
-                        <td><span className={`status-${a.status}`}>{a.status}</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p>Nenhum agendamento confirmado ainda.</p>
-              )}
-            </div>
-          </div>
-        )}
-        {abaAtiva === 'horarios' && (
-          <div className="card">
-            <h2 className="adm-title">Horários de atendimento</h2>
-            <p className="adm-sub">Dias, expediente e pausas da sua agenda.</p>
-            {/* Formulário de Horários aqui */}
-            <form onSubmit={handleSalvarHorarios}>
-              {/* ... campos de início, fim, intervalo, pausa, dias ... */}
-              <button type="submit" className="btn btn-primary">Salvar Horários</button>
-            </form>
-          </div>
-        )}
-        {abaAtiva === 'cupons' && (
-          <div className="card">
-            <h2 className="adm-title">Cupons de desconto</h2>
-            <p className="adm-sub">Códigos promocionais para seus clientes.</p>
-            {/* Formulário de Cupons aqui */}
-            <form onSubmit={handleCriarCupom}>
-              {/* ... campos de código e desconto ... */}
-              <button type="submit" className="btn btn-primary">Ativar Cupom</button>
-            </form>
-          </div>
-        )}
-        {abaAtiva === 'pedidos' && (
-          <div className="card">
-            <h2 className="adm-title">Histórico de Pedidos</h2>
-            <p className="adm-sub">Visualize e gerencie os pedidos do seu cliente.</p>
-            {/* Filtro de Status */}
-            <div className="adm-filter-container">
-              <label>Status:</label>
-              <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
-                <option value="todos">Todos</option>
-                <option value="enviado_whatsapp">Enviado WhatsApp</option>
-                <option value="confirmado">Confirmado</option>
-                <option value="pronto">Pronto para entrega</option>
-                <option value="entregue">Entregue</option>
-                <option value="cancelado">Cancelado</option>
-              </select>
-            </div>
-            {/* Tabela de Pedidos */}
-            <div className="adm-table-container">
-              {carregandoPedidos ? (
-                <p>Carregando pedidos...</p>
-              ) : pedidos.length > 0 ? (
-                <table>
-                  <thead>
-                    <tr><th>Cliente</th><th>Total</th><th>Cupom</th><th>Status</th><th>Data</th></tr>
-                  </thead>
-                  <tbody>
-                    {pedidos.map((p) => (
-                      <tr key={p.id}>
-                        <td>{p.cliente_nome} ({p.cliente_telefone})</td>
-                        <td>{moeda(p.total)}</td>
-                        <td>{p.cupom_codigo || 'N/A'}</td>
-                        <td><span className={`status-${p.status}`}>{p.status}</span></td>
-                        <td>{new Date(p.criado_em).toLocaleDateString('pt-BR')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p>Nenhum pedido encontrado com o filtro selecionado.</p>
-              )}
-            </div>
-            <div className="adm-pagination">
-              {/* Implementar paginação aqui */}
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
-  );
+  if (carregando) {
     return <div className="v-notfound">Carregando painel...</div>;
   }
 
