@@ -143,6 +143,11 @@ export async function listarFidelidadeMovimentacoes(lojaSlug, limite = 50) {
 
 // ==================== UTILITÁRIOS ====================
 
+// Formata moeda: R$ XX,XX
+export function formatarMoeda(valor) {
+  return 'R$ ' + Number(valor).toFixed(2).replace('.', ',');
+}
+
 // Formata telefone para exibição: (DD) 9XXXX-XXXX
 export function formatarTelefoneExibicao(tel) {
   const digits = String(tel || '').replace(/\D/g, '');
