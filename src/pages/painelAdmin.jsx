@@ -230,7 +230,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
           <TemaLoja tema={tema} corPrimaria={form.cor} corSecundaria={secundaria}>
             <div className="v-topbar">
               <div className="v-wrap v-topbar-in">
-                <div className="v-brand">{lojaPreview.logo ? <img src={lojaPreview.logo} alt="" /> : <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="currentColor"/><path d="M10 17h14M17 10v14" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>}<span>{lojaPreview.nome}</span></div>
+                <div className="v-brand">{lojaPreview.logo ? <img src={lojaPreview.logo} alt="" /> : <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="var(--brand)"/><path d="M10 17h14M17 10v14" stroke="var(--brand-ink)" strokeWidth="3" strokeLinecap="round"/></svg>}<span>{lojaPreview.nome}</span></div>
                 {catalogo && <span className="v-cart-btn"><i className="fa-solid fa-bag-shopping" /> Sacola <span className="v-cart-count">0</span></span>}
               </div>
             </div>
@@ -496,7 +496,7 @@ export default function PainelAdmin() {
     <div className="adm">
       <aside className="adm-side">
         <Link to="/" className="adm-brand">
-          <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="white"/><path d="M10 17h14M17 10v14" stroke="#0a0a0a" stroke-width="3" stroke-linecap="round"/></svg> ConectaLocal
+          <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="white"/><path d="M10 17h14M17 10v14" stroke="#0a0a0a" strokeWidth="3" strokeLinecap="round"/></svg> ConectaLocal
         </Link>
 
         <div className="adm-store">

@@ -147,7 +147,7 @@ export default function LoginLojista() {
     <div className="auth">
       <aside className="auth-side">
         <Link to="/" className="lp-logo">
-          <svg width="38" height="38" viewBox="0 0 38 38" fill="none" aria-hidden="true"><rect width="38" height="38" rx="10" fill="currentColor"/><path d="M11 19h16M19 11v16" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>
+          <svg width="38" height="38" viewBox="0 0 38 38" fill="none" aria-hidden="true"><rect width="38" height="38" rx="10" fill="#0a0a0a"/><path d="M11 19h16M19 11v16" stroke="white" strokeWidth="3" strokeLinecap="round"/></svg>
           ConectaLocal
         </Link>
 

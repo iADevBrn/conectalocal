@@ -16,7 +16,7 @@ export default function LandingPage() {
       <div className="container">
         <nav className="lp-nav">
           <Link to="/" className="lp-logo">
-            <svg width="38" height="38" viewBox="0 0 38 38" fill="none" aria-hidden="true"><rect width="38" height="38" rx="10" fill="currentColor"/><path d="M11 19h16M19 11v16" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>
+            <svg width="38" height="38" viewBox="0 0 38 38" fill="none" aria-hidden="true"><rect width="38" height="38" rx="10" fill="currentColor"/><path d="M11 19h16M19 11v16" stroke="white" strokeWidth="3" strokeLinecap="round"/></svg>
             ConectaLocal
           </Link>
           <div className="lp-nav-links">
@@ -48,7 +48,7 @@ export default function LandingPage() {
             <div className="lp-phone">
               <div className="mini-cover" />
               <div className="mini-body">
-                <div className="mini-avatar"><svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-hidden="true"><rect width="52" height="52" rx="14" fill="currentColor"/><path d="M15 26h22M26 15v22" stroke="white" stroke-width="4" stroke-linecap="round"/></svg></div>
+                <div className="mini-avatar"><svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-hidden="true"><rect width="52" height="52" rx="14" fill="currentColor"/><path d="M15 26h22M26 15v22" stroke="white" strokeWidth="4" strokeLinecap="round"/></svg></div>
                 <div className="mini-title">Sabor da Casa</div>
                 <div className="mini-sub">Cozinha artesanal</div>
                 <div className="mini-chips">
