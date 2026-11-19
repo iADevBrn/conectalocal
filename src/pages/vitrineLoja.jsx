@@ -70,6 +70,15 @@ export default function VitrineLoja() {
     };
   }, [loja]);
 
+  // Após o magic link/OTP, o Supabase redireciona de volta com session.
+  // O onAuthStateChange no ClienteContext já detecta e carrega o perfil.
+  // Se for um novo usuário, precisamos completar o cadastro (nome + telefone).
+  useEffect(() => {
+    if (usuario && !cliente && loja) {
+      setCompletandoCadastro(true);
+    }
+  }, [usuario, cliente, loja]);
+
   if (carregando || (buscando && !loja)) {
     return <div className="v-notfound">Carregando vitrine...</div>;
   }
@@ -229,15 +238,6 @@ export default function VitrineLoja() {
     setLoginValor('');
     setLoginErro('');
   };
-
-  // Após o magic link/OTP, o Supabase redireciona de volta com session.
-  // O onAuthStateChange no ClienteContext já detecta e carrega o perfil.
-  // Se for um novo usuário, precisamos completar o cadastro (nome + telefone).
-  useEffect(() => {
-    if (usuario && !cliente && loja) {
-      setCompletandoCadastro(true);
-    }
-  }, [usuario, cliente, loja]);
 
   const handleCompletarCadastro = async (e) => {
     e.preventDefault();

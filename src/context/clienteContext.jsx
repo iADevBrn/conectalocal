@@ -90,7 +90,7 @@ export function ClienteProvider({ children }) {
   }, [carregarPerfil]);
 
   // Login via Magic Link (email)
-  const loginComEmail = async (email, redirectTo) => {
+  const loginComEmail = async (email, _redirectTo) => {
     await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: _redirectTo, shouldCreateUser: true },
