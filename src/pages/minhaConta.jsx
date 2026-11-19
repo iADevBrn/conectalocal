@@ -142,7 +142,7 @@ export default function MinhaConta() {
       () => salvarPerfil({
         p_nome: formPerfil.nome.trim(),
         p_telefone: formPerfil.telefone,
-        p_avatar_url: formPerfil.avatar_url || null,
+        p_avatar_url: formPerfil.avatar_url,
         p_data_nascimento: formPerfil.data_nascimento || null,
         p_preferencias: formPerfil.preferencias,
       }),

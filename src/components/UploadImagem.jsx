@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 const BUCKET = 'fotos-publicas';
@@ -11,9 +11,17 @@ const EXTENSOES_POR_TIPO = {
   'image/webp': 'webp'
 };
 
-export default function UploadImagem({ label, onChange, help, onUploadingChange }) {
+export default function UploadImagem({ label, value, onChange, help, onUploadingChange }) {
+  const inputId = useId();
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
+  const [nomeArquivo, setNomeArquivo] = useState('');
+
+  const removerImagem = () => {
+    onChange('');
+    setNomeArquivo('');
+    setErro('');
+  };
 
   const selecionarImagem = async (e) => {
     const input = e.currentTarget;
@@ -55,6 +63,7 @@ export default function UploadImagem({ label, onChange, help, onUploadingChange 
       const { data } = supabase.storage.from(BUCKET).getPublicUrl(caminho);
       if (!data.publicUrl) throw new Error('Não foi possível obter o link da imagem enviada.');
       onChange(data.publicUrl);
+      setNomeArquivo(arquivo.name);
     } catch (err) {
       console.error('Erro ao enviar imagem:', err);
       setErro(err.message || 'Não foi possível enviar a imagem. Tente novamente.');
@@ -69,13 +78,49 @@ export default function UploadImagem({ label, onChange, help, onUploadingChange 
       <span>{label}</span>
       <small>{help}</small>
       <input
+        id={inputId}
+        className="image-upload-input"
         type="file"
         accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
-        aria-label={`Selecionar ${label.toLowerCase()} no dispositivo`}
+        aria-label={`${value ? 'Trocar' : 'Adicionar'} ${label.toLowerCase()}`}
         onChange={selecionarImagem}
         disabled={enviando}
       />
-      {enviando && <small role="status">Enviando imagem...</small>}
+      {value ? (
+        <div className="image-upload-state image-upload-selected">
+          <img src={value} alt="" aria-hidden="true" />
+          <div className="image-upload-details">
+            <strong title={nomeArquivo || 'Imagem atual'}>{nomeArquivo || 'Imagem atual'}</strong>
+            <small>{enviando ? 'Enviando imagem...' : 'Imagem adicionada'}</small>
+            <div className="image-upload-actions">
+              <label htmlFor={inputId} className="btn btn-ghost btn-sm image-upload-trigger">
+                Trocar imagem
+              </label>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={removerImagem}
+                disabled={enviando}
+              >
+                Remover imagem
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="image-upload-state image-upload-empty">
+          <div className="image-upload-placeholder" aria-hidden="true">
+            <i className="fa-solid fa-image" />
+          </div>
+          <div>
+            <strong>Nenhuma imagem adicionada</strong>
+            <small>JPG, PNG, WEBP, AVIF ou GIF · até 5 MB</small>
+          </div>
+          <label htmlFor={inputId} className="btn btn-primary btn-sm image-upload-trigger" aria-disabled={enviando}>
+            {enviando ? 'Enviando...' : 'Adicionar imagem'}
+          </label>
+        </div>
+      )}
       {erro && <small className="image-upload-error" role="alert">{erro}</small>}
     </div>
   );

@@ -20,6 +20,8 @@
 
 @media (max-width: 640px) {
   .field-row { grid-template-columns: 1fr; }
+  .image-upload-empty { grid-template-columns: 44px minmax(0, 1fr); }
+  .image-upload-empty .image-upload-trigger { grid-column: 1 / -1; justify-self: start; }
   .choice-grid { grid-template-columns: 1fr; }
   .lp-nav-links .btn-ghost { display: none; }
   .lp-phone.is-2 { display: none; }

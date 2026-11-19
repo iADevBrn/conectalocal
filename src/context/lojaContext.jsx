@@ -128,7 +128,7 @@ export function LojaProvider({ children }) {
           modo: novosDados.modo || loja.modo,
           cor_primaria: novosDados.corPrimaria,
           cor_secundaria: novosDados.corSecundaria,
-          ...(novosDados.logoUrl ? { logo_url: novosDados.logoUrl } : {}),
+          ...(Object.hasOwn(novosDados, 'logoUrl') ? { logo_url: novosDados.logoUrl || null } : {}),
           ...(novosDados.personalizacao ? { personalizacao: novosDados.personalizacao } : {})
         })
         .eq('id', loja.id)
