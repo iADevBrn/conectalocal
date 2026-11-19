@@ -9,17 +9,6 @@ const SLUGS_RESERVADOS = [
   'raizes', 'doceria-ana', 'conectalocal', 'contato', 'precos', 'planos', 'blog'
 ];
 
-const normalizarTelefoneCliente = (valor) => {
-  const digitos = valor.replace(/\D/g, '');
-  const numeroNacional = digitos.startsWith('55') && [12, 13].includes(digitos.length)
-    ? digitos.slice(2)
-    : digitos;
-  if (numeroNacional.length < 10 || numeroNacional.length > 11) {
-    throw new Error('Informe um número de WhatsApp válido com DDD.');
-  }
-  return `+55${numeroNacional}`;
-};
-
 export default function LoginLojista() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -33,9 +22,6 @@ export default function LoginLojista() {
   // Campos de acesso
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
-  const [metodoCliente, setMetodoCliente] = useState('email');
-  const [codigoCliente, setCodigoCliente] = useState('');
-  const [codigoClienteEnviado, setCodigoClienteEnviado] = useState(false);
 
   // Campos da loja (usados no cadastro de lojista)
   const [nomeLoja, setNomeLoja] = useState('');
@@ -64,39 +50,6 @@ export default function LoginLojista() {
     setCarregando(true);
 
     try {
-      if (tipo === 'cliente') {
-        if (metodoCliente === 'email') {
-          const { error } = await supabase.auth.signInWithOtp({
-            email: email.trim(),
-            options: {
-              emailRedirectTo: `${window.location.origin}/`,
-              shouldCreateUser: true,
-            },
-          });
-          if (error) throw error;
-          setAviso('Verifique seu e-mail e clique no link para entrar.');
-        } else if (codigoClienteEnviado) {
-          const tel = normalizarTelefoneCliente(telefone);
-          const { error } = await supabase.auth.verifyOtp({
-            phone: tel,
-            token: codigoCliente.trim(),
-            type: 'sms',
-          });
-          if (error) throw error;
-          navigate('/');
-        } else {
-          const tel = normalizarTelefoneCliente(telefone);
-          const { error } = await supabase.auth.signInWithOtp({
-            phone: tel,
-            options: { shouldCreateUser: true },
-          });
-          if (error) throw error;
-          setCodigoClienteEnviado(true);
-          setAviso('Código enviado. Digite-o abaixo para concluir o acesso.');
-        }
-        return;
-      }
-
       // --- FLUXO LOJISTA ---
       if (!modoCadastro) {
         // LOGIN DE LOJISTA EXISTENTE
@@ -162,15 +115,18 @@ export default function LoginLojista() {
   }, [navigate, tipo]);
 
   const isCliente = tipo === 'cliente';
-  const selecionarMetodoCliente = (metodo) => {
-    setMetodoCliente(metodo);
-    setEmail('');
-    setTelefone('');
-    setCodigoCliente('');
-    setCodigoClienteEnviado(false);
-    setErro('');
-    setAviso('');
-  };
+
+  if (isCliente) {
+    return (
+      <div className="v-notfound" style={{ minHeight: '100vh' }}>
+        <div>
+          <h1>Acesse pela vitrine da loja</h1>
+          <p>Para entrar como cliente, abra a loja e toque em “Sou cliente”.</p>
+          <Link to="/" className="btn btn-primary">Voltar ao início</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth">
@@ -181,39 +137,13 @@ export default function LoginLojista() {
         </Link>
 
         <div style={{ position: 'relative', zIndex: 1 }}>
-          {isCliente ? (
-            <>
-              <h2>Acesse sua conta de cliente</h2>
-              <ul className="auth-list">
-                <li><i className="fa-solid fa-check" /> Veja seu histórico de pedidos</li>
-                <li><i className="fa-solid fa-check" /> Gerencie seus endereços de entrega</li>
-                <li><i className="fa-solid fa-check" /> Acompanhe seus pontos de fidelidade</li>
-                <li><i className="fa-solid fa-check" /> Seus favoritos salvos</li>
-              </ul>
-            </>
-          ) : (
-            <>
-              <h2>Sua vitrine com a cara do seu negócio.</h2>
-              <ul className="auth-list">
-                <li><i className="fa-solid fa-check" /> Link próprio para colocar no Instagram e no WhatsApp</li>
-                <li><i className="fa-solid fa-check" /> Pedidos ou agendamentos direto no seu WhatsApp</li>
-                <li><i className="fa-solid fa-check" /> Cores, fontes e estilo do jeito que você quiser</li>
-                <li><i className="fa-solid fa-check" /> Painel simples, feito para o celular</li>
-              </ul>
-            </>
-          )}
-        </div>
-
-        <div style={{ marginTop: 'auto', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {isCliente ? (
-            <Link to="/login" className="btn btn-ghost btn-sm" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}>
-              <i className="fa-solid fa-store" /> Sou lojista
-            </Link>
-          ) : (
-            <Link to="/login?tipo=cliente" className="btn btn-ghost btn-sm" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}>
-              <i className="fa-solid fa-user" /> Sou cliente
-            </Link>
-          )}
+          <h2>Sua vitrine com a cara do seu negócio.</h2>
+          <ul className="auth-list">
+            <li><i className="fa-solid fa-check" /> Link próprio para colocar no Instagram e no WhatsApp</li>
+            <li><i className="fa-solid fa-check" /> Pedidos ou agendamentos direto no seu WhatsApp</li>
+            <li><i className="fa-solid fa-check" /> Cores, fontes e estilo do jeito que você quiser</li>
+            <li><i className="fa-solid fa-check" /> Painel simples, feito para o celular</li>
+          </ul>
         </div>
 
         <small style={{ opacity: 0.75, position: 'relative', zIndex: 1 }}>© 2026 ConectaLocal</small>
@@ -221,88 +151,8 @@ export default function LoginLojista() {
 
       <main className="auth-main">
         <div className="auth-card">
-          {isCliente ? (
-            <>
-              <h1>Entre na sua conta</h1>
-              <p>Receba um código mágico por e-mail ou WhatsApp. Sem senha, sem complicação.</p>
-
-              {erro && <div className="alert alert-error" role="alert">{erro}</div>}
-              {aviso && <div className="alert alert-ok" role="status">{aviso}</div>}
-
-              <form onSubmit={handleSubmit}>
-                <div className="choice-grid" role="group" aria-label="Método de acesso">
-                  <button type="button" className="choice" aria-pressed={metodoCliente === 'email'} onClick={() => selecionarMetodoCliente('email')}>
-                    <i className="fa-solid fa-envelope" />
-                    <strong>E-mail</strong>
-                    <small>Link mágico na sua caixa de entrada</small>
-                  </button>
-                  <button type="button" className="choice" aria-pressed={metodoCliente === 'whatsapp'} onClick={() => selecionarMetodoCliente('whatsapp')}>
-                    <i className="fa-brands fa-whatsapp" />
-                    <strong>WhatsApp</strong>
-                    <small>Código via SMS/WhatsApp</small>
-                  </button>
-                </div>
-
-                {metodoCliente === 'whatsapp' && codigoClienteEnviado ? (
-                  <>
-                    <label className="field">
-                      <span>Código de verificação</span>
-                      <input
-                        type="text"
-                        value={codigoCliente}
-                        onChange={(e) => setCodigoCliente(e.target.value)}
-                        placeholder="Digite o código recebido"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        maxLength={8}
-                        required
-                      />
-                      <small>Enviamos um código para o WhatsApp informado.</small>
-                    </label>
-                    <button
-                      type="button"
-                      className="link-btn"
-                      onClick={() => {
-                        setCodigoCliente('');
-                        setCodigoClienteEnviado(false);
-                        setAviso('');
-                        setErro('');
-                      }}
-                    >
-                      Alterar número
-                    </button>
-                  </>
-                ) : (
-                  <label className="field">
-                    <span>{metodoCliente === 'whatsapp' ? 'WhatsApp (com DDD)' : 'E-mail de acesso'}</span>
-                    <input
-                      type={metodoCliente === 'whatsapp' ? 'tel' : 'email'}
-                      value={metodoCliente === 'whatsapp' ? telefone : email}
-                      onChange={(e) => metodoCliente === 'whatsapp' ? setTelefone(e.target.value) : setEmail(e.target.value)}
-                      placeholder={metodoCliente === 'whatsapp' ? '(43) 99999-9999' : 'seu@email.com'}
-                      inputMode={metodoCliente === 'whatsapp' ? 'tel' : 'email'}
-                      autoComplete={metodoCliente === 'whatsapp' ? 'tel' : 'email'}
-                      required
-                    />
-                  </label>
-                )}
-
-                <button type="submit" disabled={carregando} className="btn btn-primary btn-block btn-lg">
-                  {carregando
-                    ? (codigoClienteEnviado ? 'Verificando...' : 'Enviando...')
-                    : codigoClienteEnviado
-                      ? 'Confirmar código'
-                      : `Enviar código por ${metodoCliente === 'whatsapp' ? 'WhatsApp' : 'e-mail'}`}
-                </button>
-              </form>
-
-              <p className="login-hint">
-                Ao continuar, você concorda com nossos <a href="/termos" target="_blank">Termos de Uso</a> e <a href="/privacidade" target="_blank">Política de Privacidade</a>.
-              </p>
-            </>
-          ) : (
-            <>
-              <h1>{modoCadastro ? 'Crie sua vitrine' : 'Bem-vindo de volta'}</h1>
+          <>
+            <h1>{modoCadastro ? 'Crie sua vitrine' : 'Bem-vindo de volta'}</h1>
               <p>
                 {modoCadastro
                   ? 'Em poucos minutos seu negócio estará no ar.'
@@ -385,8 +235,7 @@ export default function LoginLojista() {
                   {modoCadastro ? 'Já tenho uma conta? Fazer login' : 'Ainda não tem vitrine? Cadastre-se'}
                 </button>
               </div>
-            </>
-          )}
+          </>
           <Link to="/" className="auth-back">← Voltar ao início</Link>
         </div>
       </main>

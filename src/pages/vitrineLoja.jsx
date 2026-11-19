@@ -19,9 +19,11 @@ export default function VitrineLoja() {
   const {
     cliente,
     usuario,
+    carregandoPerfil,
     definirLojaAtual,
     loginComEmail,
     loginComWhatsApp,
+    verificarCodigoWhatsApp,
     completarCadastro,
     sair,
     toggleFav,
@@ -42,9 +44,11 @@ export default function VitrineLoja() {
   const [mostrarLogin, setMostrarLogin] = useState(false);
   const [loginMetodo, setLoginMetodo] = useState('email'); // 'email' | 'whatsapp'
   const [loginValor, setLoginValor] = useState('');
+  const [loginCodigo, setLoginCodigo] = useState('');
+  const [loginCodigoEnviado, setLoginCodigoEnviado] = useState(false);
   const [loginCarregando, setLoginCarregando] = useState(false);
   const [loginErro, setLoginErro] = useState('');
-  const completandoCadastro = Boolean(usuario && !cliente);
+  const completandoCadastro = Boolean(usuario && !cliente && !carregandoPerfil);
 
   // Define a loja atual no contexto do cliente (para RPCs funcionarem)
   useEffect(() => {
@@ -209,14 +213,21 @@ export default function VitrineLoja() {
     try {
       const redirectTo = `${window.location.origin}/${loja.slug}`;
       if (loginMetodo === 'email') {
-        await loginComEmail(loginValor, redirectTo);
+        await loginComEmail(loginValor.trim(), redirectTo);
         mostrarToast('Verifique seu e-mail e clique no link para entrar.');
+        setMostrarLogin(false);
+        setLoginValor('');
+      } else if (loginCodigoEnviado) {
+        await verificarCodigoWhatsApp(loginValor, loginCodigo);
+        setLoginCodigoEnviado(false);
+        setLoginCodigo('');
+        mostrarToast('Código confirmado. Acesso realizado!');
       } else {
-        await loginComWhatsApp(loginValor, redirectTo);
+        await loginComWhatsApp(loginValor);
+        setLoginCodigoEnviado(true);
+        setLoginCodigo('');
         mostrarToast('Código enviado por SMS/WhatsApp. Verifique suas mensagens.');
       }
-      setMostrarLogin(false);
-      setLoginValor('');
     } catch (err) {
       setLoginErro(err.message || 'Erro ao enviar código. Tente novamente.');
     } finally {
@@ -227,6 +238,8 @@ export default function VitrineLoja() {
   const handleTrocarMetodo = () => {
     setLoginMetodo(m => m === 'email' ? 'whatsapp' : 'email');
     setLoginValor('');
+    setLoginCodigo('');
+    setLoginCodigoEnviado(false);
     setLoginErro('');
   };
 
@@ -236,11 +249,15 @@ export default function VitrineLoja() {
     const nome = form.get('nome')?.toString().trim();
     const telefone = form.get('telefone')?.toString().trim();
     if (!nome || !telefone) return;
+    setLoginCarregando(true);
     try {
       await completarCadastro(loja.slug, nome, telefone);
       mostrarToast('Cadastro completo! Bem-vindo.');
+      setMostrarLogin(false);
     } catch (err) {
       setLoginErro(err.message || 'Erro ao completar cadastro.');
+    } finally {
+      setLoginCarregando(false);
     }
   };
 
@@ -325,8 +342,13 @@ export default function VitrineLoja() {
                   </div>
                 </div>
               ) : (
-                <button className="btn btn-ghost btn-sm" onClick={() => setMostrarLogin(true)}>
-                  <i className="fa-solid fa-user" /> Entrar
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setMostrarLogin(true)}
+                  disabled={carregandoPerfil}
+                  aria-label={carregandoPerfil ? 'Carregando conta' : usuario ? 'Completar cadastro' : 'Sou cliente'}
+                >
+                  <i className="fa-solid fa-user" /> {carregandoPerfil ? 'Carregando...' : usuario ? 'Completar cadastro' : 'Sou cliente'}
                 </button>
               )}
             </div>
@@ -508,12 +530,25 @@ export default function VitrineLoja() {
               <i className="fa-solid fa-xmark" />
             </button>
 
-            {completandoCadastro ? (
+            {usuario && carregandoPerfil ? (
+              <div role="status">
+                <h2 id="login-title">Verificando sua conta</h2>
+                <p>Aguarde enquanto carregamos seu perfil nesta loja.</p>
+              </div>
+            ) : cliente ? (
+              <div>
+                <h2 id="login-title">Bem-vindo, {cliente.nome}!</h2>
+                <p>Você está conectado nesta loja.</p>
+                <button type="button" className="btn btn-primary btn-block" onClick={() => setMostrarLogin(false)}>
+                  Continuar
+                </button>
+              </div>
+            ) : completandoCadastro ? (
               <form onSubmit={handleCompletarCadastro}>
                 <h2 id="login-title">Complete seu cadastro</h2>
                 <p>Você entrou com sucesso! Falta só seu nome e WhatsApp para finalizar.</p>
 
-                {loginErro && <div className="alert alert-error">{loginErro}</div>}
+                {loginErro && <div className="alert alert-error" role="alert">{loginErro}</div>}
 
                 <label className="field">
                   <span>Seu nome</span>
@@ -554,24 +589,59 @@ export default function VitrineLoja() {
                   </button>
                 </div>
 
-                {loginErro && <div className="alert alert-error">{loginErro}</div>}
+                {loginErro && <div className="alert alert-error" role="alert">{loginErro}</div>}
 
-                <label className="field">
-                  <span>{loginMetodo === 'email' ? 'Seu e-mail' : 'WhatsApp (com DDD)'}</span>
-                  <input
-                    type={loginMetodo === 'email' ? 'email' : 'tel'}
-                    value={loginValor}
-                    onChange={e => setLoginValor(e.target.value)}
-                    placeholder={loginMetodo === 'email' ? 'seu@email.com' : '(43) 99999-9999'}
-                    inputMode={loginMetodo === 'email' ? 'email' : 'tel'}
-                    autoComplete={loginMetodo === 'email' ? 'email' : 'tel'}
-                    required
-                    autoFocus
-                  />
-                </label>
+                {loginMetodo === 'whatsapp' && loginCodigoEnviado ? (
+                  <>
+                    <label className="field">
+                      <span>Código de verificação</span>
+                      <input
+                        type="text"
+                        value={loginCodigo}
+                        onChange={(e) => setLoginCodigo(e.target.value)}
+                        placeholder="Digite o código recebido"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={8}
+                        required
+                        autoFocus
+                      />
+                      <small>Enviamos um código para o WhatsApp informado.</small>
+                    </label>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => {
+                        setLoginCodigoEnviado(false);
+                        setLoginCodigo('');
+                        setLoginErro('');
+                      }}
+                    >
+                      Alterar número
+                    </button>
+                  </>
+                ) : (
+                  <label className="field">
+                    <span>{loginMetodo === 'email' ? 'Seu e-mail' : 'WhatsApp (com DDD)'}</span>
+                    <input
+                      type={loginMetodo === 'email' ? 'email' : 'tel'}
+                      value={loginValor}
+                      onChange={e => setLoginValor(e.target.value)}
+                      placeholder={loginMetodo === 'email' ? 'seu@email.com' : '(43) 99999-9999'}
+                      inputMode={loginMetodo === 'email' ? 'email' : 'tel'}
+                      autoComplete={loginMetodo === 'email' ? 'email' : 'tel'}
+                      required
+                      autoFocus
+                    />
+                  </label>
+                )}
 
                 <button type="submit" disabled={loginCarregando} className="btn btn-primary btn-block btn-lg">
-                  {loginCarregando ? 'Enviando...' : `Enviar código por ${loginMetodo === 'email' ? 'e-mail' : 'WhatsApp'}`}
+                  {loginCarregando
+                    ? (loginCodigoEnviado ? 'Verificando...' : 'Enviando...')
+                    : loginCodigoEnviado
+                      ? 'Confirmar código'
+                      : `Enviar código por ${loginMetodo === 'email' ? 'e-mail' : 'WhatsApp'}`}
                 </button>
 
                 <p className="login-hint">

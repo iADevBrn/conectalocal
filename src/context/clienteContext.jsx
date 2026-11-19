@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ClienteContext } from './clienteContextApi';
 import { supabase } from '../lib/supabase';
+import { normalizarTelefone } from '../lib/telefone';
 import {
   getSession,
   signOut as doSignOut,
@@ -24,6 +25,7 @@ export function ClienteProvider({ children }) {
   const [cliente, setCliente] = useState(null);        // perfil completo (inclui endereços, fidelidade)
   const [usuario, setUsuario] = useState(null);        // auth.user (do Supabase Auth)
   const [carregando, setCarregando] = useState(true);
+  const [carregandoPerfil, setCarregandoPerfil] = useState(false);
   const [lojaSlugAtual, setLojaSlugAtual] = useState(null);
   const usuarioRef = useRef(null);
   const clienteRef = useRef(null);
@@ -32,8 +34,11 @@ export function ClienteProvider({ children }) {
   const carregarPerfil = useCallback(async (slug) => {
     if (!slug || !usuarioRef.current) {
       setCliente(null);
+      clienteRef.current = null;
+      setCarregandoPerfil(false);
       return;
     }
+    setCarregandoPerfil(true);
     try {
       const perfil = await getMeuPerfil(slug);
       setCliente(perfil);
@@ -41,6 +46,9 @@ export function ClienteProvider({ children }) {
     } catch (err) {
       console.error('Erro ao carregar perfil do cliente:', err);
       setCliente(null);
+      clienteRef.current = null;
+    } finally {
+      setCarregandoPerfil(false);
     }
   }, []);
 
@@ -71,6 +79,7 @@ export function ClienteProvider({ children }) {
       } else {
         setCliente(null);
         clienteRef.current = null;
+        setCarregandoPerfil(false);
       }
     });
 
@@ -89,20 +98,34 @@ export function ClienteProvider({ children }) {
   }, [carregarPerfil]);
 
   // Login via Magic Link (email)
-  const loginComEmail = async (email, _redirectTo) => {
-    await supabase.auth.signInWithOtp({
+  const loginComEmail = async (email, redirectTo) => {
+    const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: _redirectTo, shouldCreateUser: true },
+      options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
     });
+    if (error) throw error;
   };
 
   // Login via WhatsApp (OTP SMS)
-  const loginComWhatsApp = async (telefone, _redirectTo) => {
-    const tel = telefone.startsWith('+') ? telefone : `+55${telefone.replace(/\D/g, '')}`;
-    await supabase.auth.signInWithOtp({
-      phone: tel,
+  const loginComWhatsApp = async (telefone) => {
+    const numero = normalizarTelefone(telefone);
+    if (![12, 13].includes(numero.length)) throw new Error('Informe um número de WhatsApp válido com DDD.');
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: `+${numero}`,
       options: { shouldCreateUser: true },
     });
+    if (error) throw error;
+  };
+
+  const verificarCodigoWhatsApp = async (telefone, codigo) => {
+    const numero = normalizarTelefone(telefone);
+    if (![12, 13].includes(numero.length)) throw new Error('Informe um número de WhatsApp válido com DDD.');
+    const { error } = await supabase.auth.verifyOtp({
+      phone: `+${numero}`,
+      token: codigo.trim(),
+      type: 'sms',
+    });
+    if (error) throw error;
   };
 
   // Completa o cadastro do cliente (chamado após o magic link/OTP redirecionar de volta)
@@ -119,6 +142,7 @@ export function ClienteProvider({ children }) {
     setCliente(null);
     usuarioRef.current = null;
     clienteRef.current = null;
+    setCarregandoPerfil(false);
   };
 
   // Atualiza perfil
@@ -201,11 +225,13 @@ export function ClienteProvider({ children }) {
         cliente,
         usuario,
         carregando,
+        carregandoPerfil,
         lojaSlugAtual,
 
         // Auth
         loginComEmail,
         loginComWhatsApp,
+        verificarCodigoWhatsApp,
         completarCadastro,
         sair,
 
