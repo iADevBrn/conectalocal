@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { ClienteContext } from './clienteContextApi';
 import { supabase } from '../lib/supabase';
 import {
   getSession,
@@ -18,8 +19,6 @@ import {
   listarFidelidadeMovimentacoes,
   verificarClienteDaLoja,
 } from '../lib/cliente';
-
-const ClienteContext = createContext();
 
 export function ClienteProvider({ children }) {
   const [cliente, setCliente] = useState(null);        // perfil completo (inclui endereços, fidelidade)
@@ -243,5 +242,3 @@ export function ClienteProvider({ children }) {
     </ClienteContext.Provider>
   );
 }
-
-export const useCliente = () => useContext(ClienteContext);

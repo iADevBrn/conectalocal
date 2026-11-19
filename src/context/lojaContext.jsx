@@ -1,8 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { LojaContext } from './lojaContextApi';
 import { supabase } from '../lib/supabase';
 import { LOJAS_MOCK } from '../data/mockLojas';
-
-const LojaContext = createContext();
 
 // Toda escrita no Supabase passa por aqui: se der erro, lança para a tela mostrar.
 const checar = ({ error }) => {
@@ -261,5 +260,3 @@ export function LojaProvider({ children }) {
     </LojaContext.Provider>
   );
 }
-
-export const useLojas = () => useContext(LojaContext);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useLojas } from '../context/lojaContext';
-import { useCliente } from '../context/clienteContext';
+import { useLojas } from '../context/lojaContextApi';
+import { useCliente } from '../context/clienteContextApi';
 import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
 import { lerTema } from '../lib/tema';
@@ -44,7 +44,7 @@ export default function VitrineLoja() {
   const [loginValor, setLoginValor] = useState('');
   const [loginCarregando, setLoginCarregando] = useState(false);
   const [loginErro, setLoginErro] = useState('');
-  const [completandoCadastro, setCompletandoCadastro] = useState(false);
+  const completandoCadastro = Boolean(usuario && !cliente);
 
   // Define a loja atual no contexto do cliente (para RPCs funcionarem)
   useEffect(() => {
@@ -69,21 +69,6 @@ export default function VitrineLoja() {
       document.title = 'ConectaLocal';
     };
   }, [loja]);
-
-  // Após o magic link/OTP, o Supabase redireciona de volta com session.
-  // O onAuthStateChange no ClienteContext já detecta e carrega o perfil.
-  // Se for um novo usuário, precisamos completar o cadastro (nome + telefone).
-  const [hasAttemptedCompletion, setHasAttemptedCompletion] = useState(false);
-  useEffect(() => {
-    if (usuario && !cliente && loja && !hasAttemptedCompletion) {
-      setHasAttemptedCompletion(true);
-      setCompletandoCadastro(true);
-    }
-    // Reset quando o perfil carrega
-    if (cliente) {
-      setHasAttemptedCompletion(false);
-    }
-  }, [usuario, cliente, loja]);
 
   if (carregando || (buscando && !loja)) {
     return <div className="v-notfound">Carregando vitrine...</div>;
@@ -254,7 +239,6 @@ export default function VitrineLoja() {
     try {
       await completarCadastro(loja.slug, nome, telefone);
       mostrarToast('Cadastro completo! Bem-vindo.');
-      setCompletandoCadastro(false);
     } catch (err) {
       setLoginErro(err.message || 'Erro ao completar cadastro.');
     }

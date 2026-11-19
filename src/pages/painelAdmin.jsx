@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { useLojas } from '../context/lojaContext';
+import { useLojas } from '../context/lojaContextApi';
 import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
 import { escurecerCor } from '../lib/cores';

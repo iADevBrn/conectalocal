@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { useLojas } from '../context/lojaContext';
-import { useCliente } from '../context/clienteContext';
+import { useLojas } from '../context/lojaContextApi';
+import { useCliente } from '../context/clienteContextApi';
 import { lerTema } from '../lib/tema';
 import { formatarMoeda, formatarTelefoneExibicao, formatarCep, gerarAvatarIniciais } from '../lib/cliente';
 import TemaLoja from '../components/TemaLoja';
@@ -24,7 +24,6 @@ export default function MinhaConta() {
   const {
     cliente,
     usuario,
-    carregando,
     salvarPerfil,
     addEndereco,
     editEndereco,
