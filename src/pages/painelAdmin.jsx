@@ -119,7 +119,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
               value={form.logoUrl}
               onChange={(logoUrl) => setForm((f) => ({ ...f, logoUrl }))}
               onUploadingChange={(ativo) => setUploadsAtivos((u) => ({ ...u, logo: ativo }))}
-              help="Cole um link https ou escolha uma imagem do seu computador ou celular (até 5 MB)."
+              help="Selecione uma imagem do seu computador ou celular (até 5 MB)."
             />
           </div>
         </section>
@@ -170,7 +170,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
                 value={form.tema.capaUrl}
                 onChange={(capaUrl) => setTema('capaUrl', capaUrl)}
                 onUploadingChange={(ativo) => setUploadsAtivos((u) => ({ ...u, capa: ativo }))}
-                help="Se preencher, a foto substitui o estilo acima. Cole um link https ou escolha uma imagem (até 5 MB)."
+                help="Se preencher, a foto substitui o estilo acima. Selecione uma imagem (até 5 MB)."
               />
             </>
           )}

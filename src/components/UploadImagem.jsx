@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 const BUCKET = 'fotos-publicas';
@@ -11,8 +11,7 @@ const EXTENSOES_POR_TIPO = {
   'image/webp': 'webp'
 };
 
-export default function UploadImagem({ label, value, onChange, help, onUploadingChange }) {
-  const labelId = useId();
+export default function UploadImagem({ label, onChange, help, onUploadingChange }) {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -67,18 +66,7 @@ export default function UploadImagem({ label, value, onChange, help, onUploading
 
   return (
     <div className="field image-upload">
-      <span id={labelId}>{label}</span>
-      <input
-        type="url"
-        value={value}
-        aria-labelledby={labelId}
-        onChange={(e) => {
-          setErro('');
-          onChange(e.target.value);
-        }}
-        placeholder="https://..."
-        inputMode="url"
-      />
+      <span>{label}</span>
       <small>{help}</small>
       <input
         type="file"
