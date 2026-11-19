@@ -9,6 +9,17 @@ const SLUGS_RESERVADOS = [
   'raizes', 'doceria-ana', 'conectalocal', 'contato', 'precos', 'planos', 'blog'
 ];
 
+const normalizarTelefoneCliente = (valor) => {
+  const digitos = valor.replace(/\D/g, '');
+  const numeroNacional = digitos.startsWith('55') && [12, 13].includes(digitos.length)
+    ? digitos.slice(2)
+    : digitos;
+  if (numeroNacional.length < 10 || numeroNacional.length > 11) {
+    throw new Error('Informe um número de WhatsApp válido com DDD.');
+  }
+  return `+55${numeroNacional}`;
+};
+
 export default function LoginLojista() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -22,6 +33,9 @@ export default function LoginLojista() {
   // Campos de acesso
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [metodoCliente, setMetodoCliente] = useState('email');
+  const [codigoCliente, setCodigoCliente] = useState('');
+  const [codigoClienteEnviado, setCodigoClienteEnviado] = useState(false);
 
   // Campos da loja (usados no cadastro de lojista)
   const [nomeLoja, setNomeLoja] = useState('');
@@ -51,25 +65,35 @@ export default function LoginLojista() {
 
     try {
       if (tipo === 'cliente') {
-        // LOGIN DE CLIENTE (freguês) - usa magic link ou OTP
-        const redirectTo = `${window.location.origin}/`; // volta pra home, o cliente navega pra loja
-        if (email) {
-          await supabase.auth.signInWithOtp({
-            email,
-            options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
+        if (metodoCliente === 'email') {
+          const { error } = await supabase.auth.signInWithOtp({
+            email: email.trim(),
+            options: {
+              emailRedirectTo: `${window.location.origin}/`,
+              shouldCreateUser: true,
+            },
           });
+          if (error) throw error;
           setAviso('Verifique seu e-mail e clique no link para entrar.');
-        } else if (telefone) {
-          const tel = telefone.startsWith('+') ? telefone : `+55${telefone.replace(/\D/g, '')}`;
-          await supabase.auth.signInWithOtp({
+        } else if (codigoClienteEnviado) {
+          const tel = normalizarTelefoneCliente(telefone);
+          const { error } = await supabase.auth.verifyOtp({
+            phone: tel,
+            token: codigoCliente.trim(),
+            type: 'sms',
+          });
+          if (error) throw error;
+          navigate('/');
+        } else {
+          const tel = normalizarTelefoneCliente(telefone);
+          const { error } = await supabase.auth.signInWithOtp({
             phone: tel,
             options: { shouldCreateUser: true },
           });
-          setAviso('Código enviado por SMS/WhatsApp. Verifique suas mensagens.');
-        } else {
-          throw new Error('Informe e-mail ou WhatsApp para receber o código de acesso.');
+          if (error) throw error;
+          setCodigoClienteEnviado(true);
+          setAviso('Código enviado. Digite-o abaixo para concluir o acesso.');
         }
-        setTimeout(() => navigate('/'), 2000);
         return;
       }
 
@@ -130,18 +154,23 @@ export default function LoginLojista() {
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        if (tipo === 'cliente') {
-          navigate('/');
-        } else {
-          navigate('/admin');
-        }
+      if (session && tipo !== 'cliente') {
+        navigate('/admin');
       }
     };
     checkSession();
   }, [navigate, tipo]);
 
   const isCliente = tipo === 'cliente';
+  const selecionarMetodoCliente = (metodo) => {
+    setMetodoCliente(metodo);
+    setEmail('');
+    setTelefone('');
+    setCodigoCliente('');
+    setCodigoClienteEnviado(false);
+    setErro('');
+    setAviso('');
+  };
 
   return (
     <div className="auth">
@@ -202,33 +231,68 @@ export default function LoginLojista() {
 
               <form onSubmit={handleSubmit}>
                 <div className="choice-grid" role="group" aria-label="Método de acesso">
-                  <button type="button" className="choice" aria-pressed={!telefone} onClick={() => { setTelefone(''); setEmail(''); }}>
+                  <button type="button" className="choice" aria-pressed={metodoCliente === 'email'} onClick={() => selecionarMetodoCliente('email')}>
                     <i className="fa-solid fa-envelope" />
                     <strong>E-mail</strong>
                     <small>Link mágico na sua caixa de entrada</small>
                   </button>
-                  <button type="button" className="choice" aria-pressed={!!telefone} onClick={() => { setEmail(''); setTelefone(''); }}>
+                  <button type="button" className="choice" aria-pressed={metodoCliente === 'whatsapp'} onClick={() => selecionarMetodoCliente('whatsapp')}>
                     <i className="fa-brands fa-whatsapp" />
                     <strong>WhatsApp</strong>
                     <small>Código via SMS/WhatsApp</small>
                   </button>
                 </div>
 
-                <label className="field">
-                  <span>{telefone ? 'WhatsApp (com DDD)' : 'E-mail de acesso'}</span>
-                  <input
-                    type={telefone ? 'tel' : 'email'}
-                    value={telefone || email}
-                    onChange={e => telefone ? setTelefone(e.target.value) : setEmail(e.target.value)}
-                    placeholder={telefone ? '(43) 99999-9999' : 'seu@email.com'}
-                    inputMode={telefone ? 'tel' : 'email'}
-                    autoComplete={telefone ? 'tel' : 'email'}
-                    required
-                  />
-                </label>
+                {metodoCliente === 'whatsapp' && codigoClienteEnviado ? (
+                  <>
+                    <label className="field">
+                      <span>Código de verificação</span>
+                      <input
+                        type="text"
+                        value={codigoCliente}
+                        onChange={(e) => setCodigoCliente(e.target.value)}
+                        placeholder="Digite o código recebido"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={8}
+                        required
+                      />
+                      <small>Enviamos um código para o WhatsApp informado.</small>
+                    </label>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => {
+                        setCodigoCliente('');
+                        setCodigoClienteEnviado(false);
+                        setAviso('');
+                        setErro('');
+                      }}
+                    >
+                      Alterar número
+                    </button>
+                  </>
+                ) : (
+                  <label className="field">
+                    <span>{metodoCliente === 'whatsapp' ? 'WhatsApp (com DDD)' : 'E-mail de acesso'}</span>
+                    <input
+                      type={metodoCliente === 'whatsapp' ? 'tel' : 'email'}
+                      value={metodoCliente === 'whatsapp' ? telefone : email}
+                      onChange={(e) => metodoCliente === 'whatsapp' ? setTelefone(e.target.value) : setEmail(e.target.value)}
+                      placeholder={metodoCliente === 'whatsapp' ? '(43) 99999-9999' : 'seu@email.com'}
+                      inputMode={metodoCliente === 'whatsapp' ? 'tel' : 'email'}
+                      autoComplete={metodoCliente === 'whatsapp' ? 'tel' : 'email'}
+                      required
+                    />
+                  </label>
+                )}
 
                 <button type="submit" disabled={carregando} className="btn btn-primary btn-block btn-lg">
-                  {carregando ? 'Enviando...' : `Enviar código por ${telefone ? 'WhatsApp' : 'e-mail'}`}
+                  {carregando
+                    ? (codigoClienteEnviado ? 'Verificando...' : 'Enviando...')
+                    : codigoClienteEnviado
+                      ? 'Confirmar código'
+                      : `Enviar código por ${metodoCliente === 'whatsapp' ? 'WhatsApp' : 'e-mail'}`}
                 </button>
               </form>
 
