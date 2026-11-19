@@ -409,8 +409,8 @@ begin
   return v_endereco_id;
 end;
 $$;
-revoke all on function public.adicionar_endereco(text, text, text, text, text, text, text, char, text, text, boolean) from public;
-grant execute on function public.adicionar_endereco(text, text, text, text, text, text, text, char, text, text, boolean) to authenticated;
+revoke all on function public.adicionar_endereco(text, text, text, text, text, text, char, text, text, text, boolean) from public;
+grant execute on function public.adicionar_endereco(text, text, text, text, text, text, char, text, text, text, boolean) to authenticated;
 
 create or replace function public.atualizar_endereco(
   p_endereco_id uuid,
