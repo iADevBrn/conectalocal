@@ -47,7 +47,7 @@ export async function enviarMagicLink(email, redirectTo) {
 }
 
 // Envia OTP via WhatsApp (usa phone sign-in do Supabase)
-export async function enviarOtpWhatsApp(phone, redirectTo) {
+export async function enviarOtpWhatsApp(phone, _redirectTo) {
   const { error } = await supabase.auth.signInWithOtp({
     phone: phone.startsWith('+') ? phone : `+55${phone.replace(/\D/g, '')}`,
     options: {

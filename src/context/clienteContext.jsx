@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { supabase } from '../lib/supabase';
 import {
   getSession,
-  getUser,
   signOut as doSignOut,
   onAuthStateChange,
   ensureProfile,
@@ -94,12 +93,12 @@ export function ClienteProvider({ children }) {
   const loginComEmail = async (email, redirectTo) => {
     await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
+      options: { emailRedirectTo: _redirectTo, shouldCreateUser: true },
     });
   };
 
   // Login via WhatsApp (OTP SMS)
-  const loginComWhatsApp = async (telefone, redirectTo) => {
+  const loginComWhatsApp = async (telefone, _redirectTo) => {
     const tel = telefone.startsWith('+') ? telefone : `+55${telefone.replace(/\D/g, '')}`;
     await supabase.auth.signInWithOtp({
       phone: tel,

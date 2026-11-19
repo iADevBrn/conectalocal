@@ -19,7 +19,6 @@ export default function VitrineLoja() {
   const {
     cliente,
     usuario,
-    carregando: clienteCarregando,
     definirLojaAtual,
     loginComEmail,
     loginComWhatsApp,
@@ -236,7 +235,6 @@ export default function VitrineLoja() {
   // Se for um novo usuário, precisamos completar o cadastro (nome + telefone).
   useEffect(() => {
     if (usuario && !cliente && loja) {
-      // Usuário autenticado mas sem perfil nesta loja → completar cadastro
       setCompletandoCadastro(true);
     }
   }, [usuario, cliente, loja]);
@@ -264,7 +262,7 @@ export default function VitrineLoja() {
     try {
       const adicionado = await toggleFav(itemId);
       mostrarToast(adicionado ? 'Adicionado aos favoritos ❤️' : 'Removido dos favoritos');
-    } catch (err) {
+    } catch {
       mostrarToast('Erro ao atualizar favoritos');
     }
   };

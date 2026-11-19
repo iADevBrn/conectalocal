@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useLojas } from '../context/lojaContext';
 import { useCliente } from '../context/clienteContext';
 import { lerTema } from '../lib/tema';
 import { formatarMoeda, formatarTelefoneExibicao, formatarCep, gerarAvatarIniciais } from '../lib/cliente';
 import TemaLoja from '../components/TemaLoja';
-import HeroLoja from '../components/HeroLoja';
 
 const TABS = [
   { id: 'perfil', icone: 'fa-user', label: 'Perfil' },
@@ -15,6 +14,8 @@ const TABS = [
   { id: 'fidelidade', icone: 'fa-medal', label: 'Fidelidade' },
 ];
 
+const HOJE_ISO = new Date().toISOString().split('T')[0];
+
 export default function MinhaConta() {
   const { slug } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -22,7 +23,6 @@ export default function MinhaConta() {
   const {
     cliente,
     usuario,
-    carregando: clienteCarregando,
     salvarPerfil,
     addEndereco,
     editEndereco,
@@ -36,7 +36,6 @@ export default function MinhaConta() {
 
   const loja = lojas[slug];
   const tema = loja ? lerTema(loja) : { modo: 'claro', cantos: 'suave' };
-  const isAgendamento = loja?.modo === 'agendamento';
 
   const [abaAtiva, setAbaAtiva] = useState(searchParams.get('tab') || 'perfil');
   const [aviso, setAviso] = useState(null); // { texto, erro }
@@ -137,7 +136,7 @@ export default function MinhaConta() {
   const handleSalvarPerfil = async (e) => {
     e.preventDefault();
     setSalvando(true);
-    const ok = await executar(
+    const _ok = await executar(
       () => salvarPerfil({
         p_nome: formPerfil.nome.trim(),
         p_telefone: formPerfil.telefone,
@@ -375,7 +374,7 @@ export default function MinhaConta() {
                     type="date"
                     value={formPerfil.data_nascimento}
                     onChange={e => setFormPerfil(f => ({ ...f, data_nascimento: e.target.value }))}
-                    max={new Date().toISOString().split('T')[0]}
+                    max={HOJE_ISO}
                   />
                 </label>
               </section>
