@@ -63,7 +63,7 @@ export default function LandingPage() {
             <div className="lp-phone is-2">
               <div className="mini-cover is-pink" style={{ height: 70 }} />
               <div className="mini-body">
-                <div className="mini-title" style={{ marginTop: 14 }}>Barbearia Dom</div>
+                <div className="mini-title">Barbearia Dom</div>
                 <div className="mini-sub" style={{ color: '#be185d' }}>Agende seu horário</div>
                 <div className="mini-slots">
                   <span className="mini-slot">09:00</span>

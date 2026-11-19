@@ -355,6 +355,7 @@ button { font-family: inherit; }
 .lp-stage::before { content: ''; position: absolute; inset: 6% 4%; background: radial-gradient(circle at 30% 20%, #4ade80, #047857 55%, transparent 72%); filter: blur(46px); opacity: 0.45; }
 .lp-phone { position: relative; width: 290px; border-radius: 38px; border: 9px solid #0a0a0a; background: #fff; overflow: hidden; box-shadow: 0 40px 70px -25px rgb(4 120 87 / 0.55); transform: rotate(3deg); }
 .lp-phone.is-2 { position: absolute; width: 230px; left: -10px; bottom: -26px; transform: rotate(-6deg); border-color: #171717; }
+.lp-phone.is-2 .mini-body { margin-top: 0; }
 .mini-cover { height: 96px; background: linear-gradient(135deg, #0a0a0a, #047857); }
 .mini-cover.is-pink { background: linear-gradient(135deg, #be185d, #831843); }
 .mini-body { padding: 0 14px 16px; margin-top: -26px; }
