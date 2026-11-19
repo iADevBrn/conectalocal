@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
 import { escurecerCor } from '../lib/cores';
 import { configAgenda, DIAS_SEMANA, horaSP } from '../lib/agenda';
+import { listarPedidosLoja } from '../lib/cliente';
 import {
   PALETAS, MODOS, FONTES, CANTOS, CAPAS, CABECALHOS, LISTAGENS,
   lerTema, normalizarTema, urlHttps, corValida
@@ -294,6 +295,11 @@ export default function PainelAdmin() {
   const [codigoCupom, setCodigoCupom] = useState('');
   const [descontoCupom, setDescontoCupom] = useState('');
 
+  // Pedidos (loja)
+  const [pedidos, setPedidos] = useState([]);
+  const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [carregandoPedidos, setCarregandoPedidos] = useState(false);
+
   // Busca agendamentos reais do Supabase se a loja for modo 'agendamento'
   useEffect(() => {
     if (!loja?.id || loja.modo !== 'agendamento') return;
@@ -310,6 +316,22 @@ export default function PainelAdmin() {
 
     buscarAgendamentos();
   }, [loja]);
+
+  // Carrega pedidos da loja quando aba "pedidos" está ativa
+  useEffect(() => {
+    if (abaAtiva !== 'pedidos' || !loja) return;
+    let ativo = true;
+    setCarregandoPedidos(true);
+    listarPedidosLoja(loja.slug, 100, 0, filtroStatus === 'todos' ? null : filtroStatus)
+      .then((data) => {
+        if (ativo) setPedidos(data || []);
+      })
+      .catch((err) => console.error('Erro ao carregar pedidos:', err))
+      .finally(() => {
+        if (ativo) setCarregandoPedidos(false);
+      });
+    return () => { ativo = false; };
+  }, [abaAtiva, loja, filtroStatus]);
 
   if (carregando) {
     return <div className="v-notfound">Carregando painel...</div>;

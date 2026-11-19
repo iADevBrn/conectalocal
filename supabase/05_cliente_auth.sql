@@ -635,6 +635,51 @@ $$;
 revoke all on function public.listar_meus_pedidos(text, integer, integer) from public;
 grant execute on function public.listar_meus_pedidos(text, integer, integer) to authenticated;
 
+-- 7.8b) Listar pedidos da loja (para painel admin/lojista)
+create or replace function public.listar_pedidos_loja(p_loja_slug text, p_limite integer default 50, p_offset integer default 0, p_status text default null)
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_loja_id uuid;
+  v_dono_id uuid := auth.uid();
+  v_result jsonb;
+begin
+  if v_dono_id is null then return '[]'::jsonb; end if;
+  select id into v_loja_id from public.lojas where slug = p_loja_slug and dono_id = v_dono_id;
+  if not found then return '[]'::jsonb; end if;
+
+  select jsonb_agg(jsonb_build_object(
+    'id', p.id,
+    'cliente_id', p.cliente_id,
+    'cliente_nome', c.nome,
+    'cliente_telefone', c.telefone,
+    'itens', p.itens,
+    'subtotal', p.subtotal,
+    'desconto', p.desconto,
+    'total', p.total,
+    'cupom_codigo', p.cupom_codigo,
+    'cupom_desconto_pct', p.cupom_desconto_pct,
+    'endereco_entrega', p.endereco_entrega,
+    'taxa_entrega', p.taxa_entrega,
+    'status', p.status,
+    'observacoes', p.observacoes,
+    'criado_em', p.criado_em,
+    'atualizado_em', p.atualizado_em
+  ) order by p.criado_em desc) into v_result
+  from public.pedidos p
+  join public.clientes c on c.id = p.cliente_id
+  where p.loja_id = v_loja_id
+    and (p_status is null or p.status = p_status)
+  limit p_limite offset p_offset;
+
+  return coalesce(v_result, '[]'::jsonb);
+end;
+$$;
+revoke all on function public.listar_pedidos_loja(text, integer, integer, text) from public;
+grant execute on function public.listar_pedidos_loja(text, integer, integer, text) to authenticated;
+
 -- 7.9) Resgatar pontos (cupom de fidelidade)
 create or replace function public.resgatar_pontos_fidelidade(p_loja_slug text, p_pontos integer)
 returns jsonb

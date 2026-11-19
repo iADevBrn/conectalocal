@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useLojas } from '../context/lojaContext';
 import { useCliente } from '../context/clienteContext';
@@ -37,11 +37,11 @@ export default function MinhaConta() {
   const loja = lojas[slug];
   const tema = loja ? lerTema(loja) : { modo: 'claro', cantos: 'suave' };
 
-  const [abaAtiva, setAbaAtiva] = useState(searchParams.get('tab') || 'perfil');
+  const [abaAtiva, setAbaAtiva] = useState(() => searchParams.get('tab') || 'perfil');
   const [aviso, setAviso] = useState(null); // { texto, erro }
   const [salvando, setSalvando] = useState(false);
 
-  // Formulários
+  // Formulários - inicializa vazio, preenche quando cliente carrega
   const [formPerfil, setFormPerfil] = useState({
     nome: '',
     telefone: '',
@@ -68,14 +68,7 @@ export default function MinhaConta() {
   const [resgatando, setResgatando] = useState(false);
   const [pontosResgate, setPontosResgate] = useState('');
 
-  // Sincroniza tab com URL
-  useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab && TABS.some(t => t.id === tab)) {
-      setAbaAtiva(tab);
-    }
-  }, [searchParams]);
-
+  // Sincroniza URL com aba (apenas escreve na URL, não lê)
   useEffect(() => {
     setSearchParams({ tab: abaAtiva }, { replace: true });
   }, [abaAtiva, setSearchParams]);
@@ -102,16 +95,22 @@ export default function MinhaConta() {
     carregar();
   }, [abaAtiva, cliente, loja, getPedidos, getFavoritos, getMovimentacoesFidelidade]);
 
-  // Preenche formulário de perfil quando cliente carrega
+  // Preenche formulário de perfil quando cliente carrega (usa ref para evitar setState repetido)
+  const formPerfilRef = useRef(null);
   useEffect(() => {
     if (cliente) {
-      setFormPerfil({
+      const novoForm = {
         nome: cliente.nome || '',
         telefone: cliente.telefone || '',
         avatar_url: cliente.avatar_url || '',
         data_nascimento: cliente.data_nascimento || '',
         preferencias: cliente.preferencias || { notificacoes: true, tema: 'sistema' },
-      });
+      };
+      // Só atualiza se mudou algo relevante
+      if (JSON.stringify(formPerfilRef.current) !== JSON.stringify(novoForm)) {
+        formPerfilRef.current = novoForm;
+        setFormPerfil(novoForm);
+      }
     }
   }, [cliente]);
 

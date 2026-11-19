@@ -19,6 +19,7 @@ const RPC = {
   // Pedidos
   registrarPedido: 'registrar_pedido',
   listarPedidos: 'listar_meus_pedidos',
+  listarPedidosLoja: 'listar_pedidos_loja',
 
   // Fidelidade
   resgatarPontos: 'resgatar_pontos_fidelidade',
@@ -129,6 +130,11 @@ export async function registrarPedido(lojaSlug, pedido) {
 
 export async function listarMeusPedidos(lojaSlug, limite = 20, offset = 0) {
   return rpc(RPC.listarPedidos, { p_loja_slug: lojaSlug, p_limite: limite, p_offset: offset });
+}
+
+// Para lojista/admin: lista pedidos da loja
+export async function listarPedidosLoja(lojaSlug, limite = 50, offset = 0, status = null) {
+  return rpc(RPC.listarPedidosLoja, { p_loja_slug: lojaSlug, p_limite: limite, p_offset: offset, p_status: status });
 }
 
 // ==================== FIDELIDADE ====================
