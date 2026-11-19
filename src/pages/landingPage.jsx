@@ -20,7 +20,7 @@ export default function LandingPage() {
             ConectaLocal
           </Link>
           <div className="lp-nav-links">
-            <Link to="/login" className="btn btn-ghost btn-sm">Entrar</Link>
+            <Link to="/login?tipo=cliente" className="btn btn-ghost btn-sm"><i className="fa-solid fa-user" /> Sou cliente</Link>
             <Link to="/login" className="btn btn-primary btn-sm">Criar minha vitrine</Link>
           </div>
         </nav>

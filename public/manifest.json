@@ -1,0 +1,41 @@
+{
+  "name": "ConectaLocal",
+  "short_name": "ConectaLocal",
+  "description": "Cardápio digital e agenda online para negócios locais. Peça ou agende pelo WhatsApp.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#0a0a0a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["food", "shopping", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "Meus pedidos",
+      "short_name": "Pedidos",
+      "description": "Ver histórico de pedidos",
+      "url": "/conta?tab=pedidos",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Fidelidade",
+      "short_name": "Pontos",
+      "description": "Ver pontos e resgatar cupons",
+      "url": "/conta?tab=fidelidade",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    }
+  ]
+}
