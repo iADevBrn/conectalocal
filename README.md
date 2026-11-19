@@ -15,6 +15,8 @@ No SQL Editor do Supabase, rode NESTA ordem:
 2. `supabase/02_melhorias.sql` (cadastro atômico da loja, expediente configurável, duração dos serviços)
 3. `supabase/03_hardening.sql` (remove políticas antigas inseguras, trava anti-spam, limites)
 4. `supabase/04_personalizacao.sql` (coluna com as escolhas visuais da vitrine: tema, fonte, capa, textos)
+5. `supabase/05_cliente_auth.sql` (conta e perfil do cliente)
+6. `supabase/06_storage_imagens.sql` (bucket e política segura para upload de fotos)
 
 O frontend depende das funções `validar_cupom`, `horarios_ocupados`, `criar_agendamento` e `slug_disponivel`.
 

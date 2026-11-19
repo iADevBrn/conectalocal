@@ -5,6 +5,7 @@ import { useCliente } from '../context/clienteContext';
 import { lerTema } from '../lib/tema';
 import { formatarMoeda, formatarTelefoneExibicao, formatarCep, gerarAvatarIniciais } from '../lib/cliente';
 import TemaLoja from '../components/TemaLoja';
+import UploadImagem from '../components/UploadImagem';
 
 const TABS = [
   { id: 'perfil', icone: 'fa-user', label: 'Perfil' },
@@ -42,6 +43,7 @@ export default function MinhaConta() {
   const [abaAtiva, setAbaAtiva] = useState(() => searchParams.get('tab') || 'perfil');
   const [aviso, setAviso] = useState(null); // { texto, erro }
   const [salvando, setSalvando] = useState(false);
+  const [uploadandoFoto, setUploadandoFoto] = useState(false);
 
   // Formulários - inicializa vazio, preenche quando cliente carrega
   const [formPerfil, setFormPerfil] = useState({
@@ -358,16 +360,13 @@ export default function MinhaConta() {
                       <span>{gerarAvatarIniciais(formPerfil.nome || 'Cliente')}</span>
                     )}
                   </div>
-                  <label className="field">
-                    <span>URL da foto (opcional)</span>
-                    <input
-                      type="url"
-                      value={formPerfil.avatar_url}
-                      onChange={e => setFormPerfil(f => ({ ...f, avatar_url: e.target.value }))}
-                      placeholder="https://... (use uma imagem quadrada)"
-                    />
-                    <small>Cole o link de uma imagem sua (ex: Google Fotos, Imgur, seu site).</small>
-                  </label>
+                  <UploadImagem
+                    label="Foto do perfil (opcional)"
+                    value={formPerfil.avatar_url}
+                    onChange={(avatar_url) => setFormPerfil((f) => ({ ...f, avatar_url }))}
+                    onUploadingChange={setUploadandoFoto}
+                    help="Cole um link https ou escolha uma imagem do seu computador ou celular (até 5 MB)."
+                  />
                 </div>
               </section>
 
@@ -425,8 +424,8 @@ export default function MinhaConta() {
                 </label>
               </section>
 
-              <button type="submit" className="btn btn-primary btn-lg" disabled={salvando}>
-                {salvando ? 'Salvando...' : 'Salvar alterações'}
+              <button type="submit" className="btn btn-primary btn-lg" disabled={salvando || uploadandoFoto}>
+                {salvando ? 'Salvando...' : uploadandoFoto ? 'Enviando imagem...' : 'Salvar alterações'}
               </button>
             </form>
           )}

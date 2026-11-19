@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
 import { escurecerCor } from '../lib/cores';
 import { configAgenda, DIAS_SEMANA, horaSP } from '../lib/agenda';
+import UploadImagem from '../components/UploadImagem';
 import {
   PALETAS, MODOS, FONTES, CANTOS, CAPAS, CABECALHOS, LISTAGENS,
   lerTema, normalizarTema, urlHttps, corValida
@@ -39,6 +40,7 @@ function Opcoes({ valor, opcoes, onChange, estiloFonte = false }) {
 
 // ---------- Aba "Aparência": personalização com pré-visualização ao vivo ----------
 function AbaAparencia({ loja, onSalvar, salvando }) {
+  const [uploadsAtivos, setUploadsAtivos] = useState({ logo: false, capa: false });
   const [form, setForm] = useState(() => ({
     modo: loja.modo || 'catalogo',
     nome: loja.nome || '',
@@ -54,6 +56,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
   const temaTxt = (chave) => (e) => setTema(chave, e.target.value);
 
   const tema = normalizarTema(form.tema);
+  const uploadAtivo = Object.values(uploadsAtivos).some(Boolean);
   const secundaria = escurecerCor(form.cor);
   const catalogo = form.modo !== 'agendamento';
   const lojaPreview = {
@@ -111,11 +114,13 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
               <span>WhatsApp (com DDD)</span>
               <input value={form.telefone} onChange={campo('telefone')} inputMode="tel" required />
             </label>
-            <label className="field">
-              <span>Link da sua logo (opcional)</span>
-              <input value={form.logoUrl} onChange={campo('logoUrl')} placeholder="https://..." inputMode="url" />
-              <small>Use o endereço de uma imagem que já esteja na internet (https).</small>
-            </label>
+            <UploadImagem
+              label="Logo (opcional)"
+              value={form.logoUrl}
+              onChange={(logoUrl) => setForm((f) => ({ ...f, logoUrl }))}
+              onUploadingChange={(ativo) => setUploadsAtivos((u) => ({ ...u, logo: ativo }))}
+              help="Cole um link https ou escolha uma imagem do seu computador ou celular (até 5 MB)."
+            />
           </div>
         </section>
 
@@ -160,11 +165,13 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
             <>
               <p className="group-title">Estilo da capa</p>
               <Opcoes valor={tema.capa} opcoes={CAPAS} onChange={(v) => setTema('capa', v)} />
-              <label className="field">
-                <span>Foto de capa (opcional)</span>
-                <input value={form.tema.capaUrl} onChange={temaTxt('capaUrl')} placeholder="https://..." inputMode="url" />
-                <small>Se preencher, a foto substitui o estilo acima.</small>
-              </label>
+              <UploadImagem
+                label="Foto de capa (opcional)"
+                value={form.tema.capaUrl}
+                onChange={(capaUrl) => setTema('capaUrl', capaUrl)}
+                onUploadingChange={(ativo) => setUploadsAtivos((u) => ({ ...u, capa: ativo }))}
+                help="Se preencher, a foto substitui o estilo acima. Cole um link https ou escolha uma imagem (até 5 MB)."
+              />
             </>
           )}
 
@@ -211,8 +218,8 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
         </section>
 
         <div>
-          <button type="submit" className="btn btn-primary btn-lg" disabled={salvando}>
-            {salvando ? 'Salvando...' : 'Salvar aparência'}
+          <button type="submit" className="btn btn-primary btn-lg" disabled={salvando || uploadAtivo}>
+            {salvando ? 'Salvando...' : uploadAtivo ? 'Enviando imagem...' : 'Salvar aparência'}
           </button>
         </div>
       </div>

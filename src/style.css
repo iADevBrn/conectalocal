@@ -75,6 +75,7 @@ button { font-family: inherit; }
 .field { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
 .field > span { font-weight: 600; font-size: 0.84rem; color: var(--text); }
 .field small { color: var(--muted); font-size: 0.78rem; }
+.image-upload-error { color: var(--danger) !important; }
 .field input, .field select, .field textarea {
   width: 100%; padding: 0.78rem 0.95rem; border-radius: var(--r-sm);
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
