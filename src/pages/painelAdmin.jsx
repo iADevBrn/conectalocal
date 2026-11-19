@@ -7,7 +7,7 @@ import { escurecerCor } from '../lib/cores';
 import { configAgenda, DIAS_SEMANA, horaSP } from '../lib/agenda';
 import UploadImagem from '../components/UploadImagem';
 import {
-  PALETAS, MODOS, FONTES, CANTOS, CAPAS, CABECALHOS, LISTAGENS,
+  FONTES, CANTOS, CAPAS, CABECALHOS, LISTAGENS,
   lerTema, normalizarTema, urlHttps, corValida
 } from '../lib/tema';
 import TemaLoja from '../components/TemaLoja';
@@ -16,6 +16,7 @@ import HeroLoja from '../components/HeroLoja';
 const moeda = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 const fmtData = (iso) =>
   new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short', day: '2-digit', month: '2-digit' });
+const COR_FUNDO_PADRAO = { claro: '#fafafa', suave: '#fbf6ec', escuro: '#050505' };
 
 // Grupo de botões de escolha (tema, fonte, cantos...)
 function Opcoes({ valor, opcoes, onChange, estiloFonte = false }) {
@@ -34,6 +35,56 @@ function Opcoes({ valor, opcoes, onChange, estiloFonte = false }) {
           {o.desc && <small>{o.desc}</small>}
         </button>
       ))}
+    </div>
+  );
+}
+
+function SeletorRGB({ label, cor, onChange, help }) {
+  const hex = corValida(cor, '#000000').slice(1);
+  const rgb = {
+    r: parseInt(hex.slice(0, 2), 16),
+    g: parseInt(hex.slice(2, 4), 16),
+    b: parseInt(hex.slice(4, 6), 16)
+  };
+  const canais = [
+    { id: 'r', nome: 'R' },
+    { id: 'g', nome: 'G' },
+    { id: 'b', nome: 'B' }
+  ];
+  const paraHex = (valores) =>
+    `#${[valores.r, valores.g, valores.b]
+      .map((valor) => Math.round(Math.max(0, Math.min(255, Number(valor) || 0))).toString(16).padStart(2, '0'))
+      .join('')}`;
+
+  return (
+    <div className="rgb-field">
+      <span>{label}</span>
+      <div className="rgb-controls">
+        <input
+          type="color"
+          value={`#${hex}`}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={`Escolher visualmente ${label.toLowerCase()}`}
+        />
+        <div className="rgb-channels">
+          {canais.map((canal) => (
+            <label key={canal.id} className="rgb-channel">
+              <span>{canal.nome}</span>
+              <input
+                type="number"
+                min="0"
+                max="255"
+                step="1"
+                value={rgb[canal.id]}
+                onChange={(e) => onChange(paraHex({ ...rgb, [canal.id]: e.target.value }))}
+                aria-label={`${label} - canal ${canal.nome}`}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+      <small>RGB({rgb.r}, {rgb.g}, {rgb.b}) · #{hex.toUpperCase()}</small>
+      {help && <small>{help}</small>}
     </div>
   );
 }
@@ -126,28 +177,22 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
 
         <section className="card">
           <h3>Cores</h3>
-          <p className="group-title">Paletas prontas</p>
-          <div className="swatches">
-            {PALETAS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className="swatch"
-                title={p.nome}
-                aria-label={`Paleta ${p.nome}`}
-                aria-pressed={form.cor.toLowerCase() === p.primaria}
-                style={{ background: p.primaria }}
-                onClick={() => setForm((f) => ({ ...f, cor: p.primaria }))}
-              />
-            ))}
-            <label className="color-input">
-              <input type="color" value={form.cor} onChange={campo('cor')} aria-label="Cor personalizada" />
-              Cor da sua marca
-            </label>
-          </div>
-
-          <p className="group-title">Fundo da vitrine</p>
-          <Opcoes valor={tema.modo} opcoes={MODOS} onChange={(v) => setTema('modo', v)} />
+          <SeletorRGB
+            label="Cor da sua marca"
+            cor={form.cor}
+            onChange={(cor) => setForm((f) => ({ ...f, cor }))}
+          />
+          <SeletorRGB
+            label="Fundo da vitrine"
+            cor={tema.corFundo || COR_FUNDO_PADRAO[tema.modo]}
+            onChange={(corFundo) => setTema('corFundo', corFundo)}
+            help="A cor do texto se ajusta automaticamente para manter o contraste."
+          />
+          {tema.corFundo && (
+            <button type="button" className="link-btn" onClick={() => setTema('corFundo', '')}>
+              Restaurar fundo padrão
+            </button>
+          )}
         </section>
 
         <section className="card">
@@ -227,7 +272,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
       <aside className="studio-preview" aria-label="Pré-visualização">
         <div className="preview-label">Pré-visualização <span>atualiza ao vivo</span></div>
         <div className="preview-frame">
-          <TemaLoja tema={tema} corPrimaria={form.cor} corSecundaria={secundaria}>
+          <TemaLoja tema={tema} corPrimaria={form.cor} corSecundaria={secundaria} corFundo={tema.corFundo}>
             <div className="v-topbar">
               <div className="v-wrap v-topbar-in">
                 <div className="v-brand">{lojaPreview.logo ? <img src={lojaPreview.logo} alt="" /> : <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="var(--brand)"/><path d="M10 17h14M17 10v14" stroke="var(--brand-ink)" strokeWidth="3" strokeLinecap="round"/></svg>}<span>{lojaPreview.nome}</span></div>

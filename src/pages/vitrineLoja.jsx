@@ -268,7 +268,7 @@ export default function VitrineLoja() {
       : (loja.categorias || []).filter((c) => c.id === categoriaAtiva);
 
   return (
-    <TemaLoja tema={tema} corPrimaria={loja.corPrimaria} corSecundaria={loja.corSecundaria}>
+    <TemaLoja tema={tema} corPrimaria={loja.corPrimaria} corSecundaria={loja.corSecundaria} corFundo={tema.corFundo}>
       {/* TOPO FIXO */}
       <header className="v-topbar">
         <div className="v-wrap v-topbar-in">

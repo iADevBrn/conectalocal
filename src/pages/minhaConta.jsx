@@ -291,7 +291,7 @@ export default function MinhaConta() {
   const totalResgatado = cliente?.fidelidade?.total_resgatado || 0;
 
   return (
-    <TemaLoja tema={tema} corPrimaria={loja.corPrimaria} corSecundaria={loja.corSecundaria}>
+    <TemaLoja tema={tema} corPrimaria={loja.corPrimaria} corSecundaria={loja.corSecundaria} corFundo={tema.corFundo}>
       <header className="v-topbar">
         <div className="v-wrap v-topbar-in">
           <Link to={`/${slug}`} className="v-brand" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

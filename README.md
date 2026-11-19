@@ -28,7 +28,8 @@ Teste após o deploy: `curl -A "WhatsApp/2.23" https://SEU-DOMINIO/slug-da-loja`
 Vercel. Defina `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em Project Settings > Environment Variables.
 
 ## Personalização da vitrine
-Em **Painel → Aparência** o lojista escolhe paleta/cor da marca, fundo (claro, creme, escuro), fonte, cantos,
+Em **Painel → Aparência** o lojista escolhe as cores da marca e do fundo da vitrine com controles RGB,
+além de fonte, cantos,
 estilo ou foto de capa, listagem (grade/lista) e informações (sobre, horário, endereço, mapa, Instagram),
 com pré-visualização ao vivo. Tudo é validado em `src/lib/tema.js` antes de chegar ao CSS/HTML
 (só valores de listas permitidas, cores `#rrggbb` e links `https`).

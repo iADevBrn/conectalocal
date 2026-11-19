@@ -464,12 +464,15 @@ button { font-family: inherit; }
 .opt small { color: var(--muted); font-size: 0.74rem; }
 .opt:hover { border-color: #d4d4d4; }
 .opt[aria-pressed='true'] { border-color: var(--brand); background: #f0fdf4; box-shadow: 0 0 0 3px rgb(4 120 87 / 0.14); }
-.swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-bottom: 1.15rem; }
-.swatch { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; border: 3px solid #fff; box-shadow: 0 0 0 1.5px var(--border); transition: transform 0.15s; }
-.swatch:hover { transform: scale(1.1); }
-.swatch[aria-pressed='true'] { box-shadow: 0 0 0 3px #0a0a0a; }
-.color-input { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.7rem 0.3rem 0.3rem; border: 1.5px dashed var(--border); border-radius: 999px; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
-.color-input input { width: 32px; height: 32px; border: none; padding: 0; background: none; cursor: pointer; }
+.rgb-field { display: grid; gap: 0.55rem; margin-bottom: 1.15rem; }
+.rgb-field > span { font-weight: 600; font-size: 0.84rem; color: var(--text); }
+.rgb-field > small { color: var(--muted); font-size: 0.78rem; }
+.rgb-controls { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 0.75rem; }
+.rgb-controls > input[type='color'] { width: 52px; height: 44px; padding: 3px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); cursor: pointer; }
+.rgb-channels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+.rgb-channel { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.35rem; }
+.rgb-channel > span { font-size: 0.78rem; font-weight: 700; color: var(--text); }
+.rgb-channel input { width: 100%; min-width: 0; padding: 0.6rem !important; }
 .toast-admin { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 400; padding: 0.85rem 1.25rem; border-radius: 14px; color: #fff; font-weight: 600; box-shadow: var(--shadow-md); max-width: min(420px, 90vw); }
 .toast-admin.ok { background: #15803d; }
 .toast-admin.err { background: #b91c1c; }
