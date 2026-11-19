@@ -23,7 +23,7 @@ export default function MinhaConta() {
   const {
     cliente,
     usuario,
-    carregando: clienteCarregando,
+    carregando,
     salvarPerfil,
     addEndereco,
     editEndereco,
@@ -33,6 +33,7 @@ export default function MinhaConta() {
     resgatarPontos,
     getMovimentacoesFidelidade,
     recarregar,
+    toggleFav,
   } = useCliente();
 
   const loja = lojas[slug];
@@ -224,6 +225,31 @@ export default function MinhaConta() {
       recarregar();
     }
     setResgatando(false);
+  };
+
+  // ---- FAVORITOS ----
+  const handleRemoverFavorito = async (itemId) => {
+    const ok = await executar(
+      () => toggleFav(itemId),
+      'Removido dos favoritos'
+    );
+    if (ok) {
+      setFavoritos((prev) => prev.filter((f) => f.id !== itemId));
+    }
+  };
+
+  const handleAdicionarDaFavoritos = (item) => {
+    // Navega para a vitrine com a sacola pré-preenchida
+    // Como a sacola é local à vitrine, a melhor UX é ir para a loja
+    // e o usuário adiciona lá. Alternativa: usar sessionStorage.
+    sessionStorage.setItem('addToCart', JSON.stringify({
+      id: item.id,
+      nome: item.nome,
+      preco: item.preco,
+      descricao: item.descricao,
+      tag: item.tag
+    }));
+    window.location.href = `/${slug}`;
   };
 
   if (lojasCarregando || clienteCarregando) {
@@ -565,12 +591,12 @@ export default function MinhaConta() {
                         <div className="v-item-actions">
                           <button
                             className="v-fav-btn active"
-                            onClick={() => { /* TODO: unfavorite */ }}
+                            onClick={() => handleRemoverFavorito(item.id)}
                             aria-label="Remover dos favoritos"
                           >
                             <i className="fa-solid fa-heart" />
                           </button>
-                          <button className="v-add" onClick={() => { /* TODO: add to cart */ }}>
+                          <button className="v-add" onClick={() => handleAdicionarDaFavoritos(item)}>
                             <i className="fa-solid fa-plus" /> Adicionar
                           </button>
                         </div>

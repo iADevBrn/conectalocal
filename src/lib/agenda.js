@@ -60,3 +60,45 @@ export function horarioDisponivel({ cfg, hora, duracao, ocupados, hoje, agora })
   if (hoje && ini <= paraMin(agora)) return false;
   return !ocupados.some((o) => ini < paraMin(o.inicio) + o.duracao && fim > paraMin(o.inicio));
 }
+
+// Converte data (YYYY-MM-DD) e hora (HH:MM) do fuso America/Sao_Paulo para ISO string (UTC)
+// Usado para enviar ao banco (timestamptz) sem depender do fuso do navegador do cliente.
+export function criarDataHorarioISO(dataStr, horaStr) {
+  const [ano, mes, dia] = dataStr.split('-').map(Number);
+  const [hora, minuto] = horaStr.split(':').map(Number);
+
+  // Cria a data/hora alvo como se fosse UTC
+  const targetUTC = new Date(Date.UTC(ano, mes - 1, dia, hora, minuto, 0));
+
+  // Obtém o offset de São Paulo PARA ESSA DATA (considera horário de verão se houver)
+  // Usa Intl para formatar a meia-noite UTC no fuso SP e extrair o offset
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'shortOffset',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  });
+  const parts = fmt.formatToParts(targetUTC);
+  const tzPart = parts.find(p => p.type === 'timeZoneName');
+  const offsetStr = tzPart?.value || 'GMT-3'; // fallback: UTC-3
+
+  // Parse "GMT-3" ou "GMT-03:00"
+  const match = offsetStr.match(/GMT([+-])(\d{1,2}):?(\d{2})?/);
+  let offsetMinutes = 180; // default -3h = 180min
+  if (match) {
+    const sign = match[1] === '-' ? -1 : 1;
+    const hours = parseInt(match[2]);
+    const mins = match[3] ? parseInt(match[3]) : 0;
+    offsetMinutes = sign * (hours * 60 + mins);
+  }
+
+  // São Paulo está atrás do UTC (offset negativo, ex: -180).
+  // Para converter hora local SP → UTC: UTC = local - offset
+  // Como offset = -180, UTC = local + 180
+  targetUTC.setUTCMinutes(targetUTC.getUTCMinutes() - offsetMinutes);
+
+  return targetUTC.toISOString();
+}

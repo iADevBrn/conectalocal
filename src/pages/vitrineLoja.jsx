@@ -73,15 +73,15 @@ export default function VitrineLoja() {
   // Após o magic link/OTP, o Supabase redireciona de volta com session.
   // O onAuthStateChange no ClienteContext já detecta e carrega o perfil.
   // Se for um novo usuário, precisamos completar o cadastro (nome + telefone).
-  const completouCadastroRef = useRef(false);
+  const [hasAttemptedCompletion, setHasAttemptedCompletion] = useState(false);
   useEffect(() => {
-    if (usuario && !cliente && loja && !completouCadastroRef.current) {
-      completouCadastroRef.current = true;
+    if (usuario && !cliente && loja && !hasAttemptedCompletion) {
+      setHasAttemptedCompletion(true);
       setCompletandoCadastro(true);
     }
     // Reset quando o perfil carrega
     if (cliente) {
-      completouCadastroRef.current = false;
+      setHasAttemptedCompletion(false);
     }
   }, [usuario, cliente, loja]);
 

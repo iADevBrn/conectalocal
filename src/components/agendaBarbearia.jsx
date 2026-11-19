@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
-import { configAgenda, gerarHorarios, diaFunciona, horarioDisponivel, hojeSP, horaSP, horaAgoraSP } from '../lib/agenda';
+import { configAgenda, gerarHorarios, diaFunciona, horarioDisponivel, hojeSP, horaSP, horaAgoraSP, criarDataHorarioISO } from '../lib/agenda';
 
 const formatarMoeda = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 const iniciais = (nome = '') =>
@@ -62,8 +62,9 @@ export default function AgendaBarbearia({ loja }) {
     }
 
     setEnviando(true);
-    // Horário de Brasília (UTC-3, sem horário de verão): não depende do fuso do aparelho do cliente.
-    const dataHorarioISO = new Date(`${dataEscolhida}T${horarioEscolhido}:00-03:00`).toISOString();
+    // Converte data/hora do fuso America/Sao_Paulo para ISO (UTC) corretamente,
+    // considerando horário de verão se houver, sem depender do fuso do navegador.
+    const dataHorarioISO = criarDataHorarioISO(dataEscolhida, horarioEscolhido);
 
     // A criação passa por uma função no banco que valida loja/profissional/serviço
     // e impede dois clientes no mesmo horário.
