@@ -473,3 +473,202 @@ button { font-family: inherit; }
 .day { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.8rem; border: 1.5px solid var(--border); border-radius: 999px; font-weight: 600; font-size: 0.88rem; cursor: pointer; background: var(--surface); }
 .day:has(input:checked) { border-color: var(--brand); background: #f0fdf4; }
 .day input { accent-color: var(--brand); }
+
+/* ==========================================================================
+   CLIENTE - MENU, MODAL, CONTA
+   ========================================================================== */
+
+/* Topbar actions (carrinho + menu cliente) */
+.v-topbar-actions { display: flex; align-items: center; gap: 0.75rem; }
+
+/* Menu dropdown do cliente logado */
+.cliente-menu { position: relative; }
+.cliente-logado { position: relative; }
+.cliente-avatar-btn {
+  width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--border);
+  background: var(--surface); cursor: pointer; display: grid; place-items: center; overflow: hidden;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.cliente-avatar-btn:hover { border-color: var(--brand); transform: scale(1.05); }
+.cliente-avatar { width: 100%; height: 100%; object-fit: cover; }
+.cliente-avatar-iniciais { font: 700 1rem var(--font-head); color: var(--brand-accent); }
+.cliente-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 100;
+  min-width: 220px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--shadow-md); overflow: hidden; animation: dropdownIn 0.15s var(--ease);
+}
+@keyframes dropdownIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+.cliente-info { padding: 1rem; border-bottom: 1px solid var(--border); }
+.cliente-info strong { display: block; font-size: 0.95rem; }
+.cliente-info small { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 0.15rem; }
+.fidelidade-badge { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.5rem; padding: 0.25rem 0.6rem; background: #fef3c7; color: #b45309; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+.dropdown-item {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.7rem 1rem; border: none; background: none; color: var(--text);
+  font: 500 0.9rem var(--font-body); cursor: pointer; text-align: left; transition: background 0.15s;
+}
+.dropdown-item:hover { background: var(--surface-2); }
+.dropdown-item.danger { color: var(--danger); }
+.dropdown-item i { width: 18px; text-align: center; }
+
+/* Modal overlay (login/cadastro) */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgb(0 0 0 / 0.6); backdrop-filter: blur(4px);
+  display: grid; place-items: center; padding: 1.5rem;
+  animation: modalOverlayIn 0.2s var(--ease);
+}
+@keyframes modalOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-card {
+  width: 100%; max-width: 440px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 1.75rem 1.5rem 1.5rem; box-shadow: var(--shadow-md);
+  animation: modalCardIn 0.25s var(--ease);
+}
+@keyframes modalCardIn { from { opacity: 0; transform: scale(0.95) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.modal-close {
+  position: absolute; top: 0.75rem; right: 0.75rem; width: 34px; height: 34px; border-radius: 50%;
+  border: none; background: var(--surface-2); color: var(--text); cursor: pointer; display: grid; place-items: center;
+  transition: background 0.15s;
+}
+.modal-close:hover { background: var(--border); }
+.modal-card h2 { font-size: 1.35rem; font-weight: 800; margin-bottom: 0.35rem; }
+.modal-card > p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.92rem; }
+
+.login-method-toggle { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.login-method-toggle button {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.65rem; border: 1.5px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--text); font: 600 0.85rem var(--font-body); cursor: pointer;
+  transition: all 0.15s;
+}
+.login-method-toggle button:hover { border-color: var(--brand); }
+.login-method-toggle button.active { border-color: var(--brand); background: #f0fdf4; color: var(--brand); }
+
+.login-hint { margin-top: 1rem; font-size: 0.75rem; color: var(--muted); text-align: center; }
+.login-hint a { color: var(--brand); text-decoration: underline; }
+
+/* ==========================================================================
+   MINHA CONTA
+   ========================================================================== */
+.conta-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 0; flex: 1; min-height: calc(100vh - 60px); }
+.conta-sidebar {
+  position: sticky; top: 60px; height: calc(100vh - 60px);
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; padding: 1.5rem 1.25rem; gap: 1.5rem;
+}
+.conta-perfil { text-align: center; }
+.conta-avatar {
+  width: 96px; height: 96px; border-radius: 50%; margin: 0 auto 1rem; overflow: hidden;
+  background: var(--surface-2); border: 3px solid var(--surface); box-shadow: var(--shadow-sm);
+  display: grid; place-items: center; font: 800 2.5rem var(--font-head); color: var(--brand-accent);
+}
+.conta-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.conta-info strong { display: block; font-size: 1.05rem; margin-bottom: 0.2rem; }
+.conta-info small { display: block; color: var(--muted); font-size: 0.82rem; }
+.fidelidade-mini { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.5rem; padding: 0.35rem 0.7rem; background: #fef3c7; color: #b45309; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+.conta-nav { display: flex; flex-direction: column; gap: 0.25rem; }
+.conta-nav button {
+  display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.7rem 0.85rem; border: none;
+  border-radius: var(--r-sm); background: none; color: var(--text); font: 600 0.9rem var(--font-body); cursor: pointer; text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.conta-nav button:hover { background: var(--surface-2); }
+.conta-nav button.active { background: var(--brand); color: var(--brand-ink); }
+.conta-nav button i { width: 18px; text-align: center; }
+.conta-main { padding: 2rem 2.5rem 3rem; max-width: 900px; width: 100%; }
+.conta-head { margin-bottom: 1.5rem; }
+.conta-head h1 { font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; }
+.conta-head p { color: var(--muted); margin-top: 0.3rem; }
+.conta-form { display: grid; gap: 1.25rem; }
+.avatar-upload { display: grid; gap: 1rem; align-items: center; }
+.avatar-preview { width: 100px; height: 100px; border-radius: 50%; overflow: hidden; margin: 0 auto; border: 3px solid var(--surface); box-shadow: var(--shadow-sm); background: var(--surface-2); display: grid; place-items: center; font: 800 2.5rem var(--font-head); color: var(--brand-accent); }
+.avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.form-actions { display: flex; gap: 0.75rem; margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+
+/* Empty states */
+.empty-state { text-align: center; padding: 3rem 1.5rem; color: var(--muted); }
+.empty-state h3 { margin: 1rem 0 0.5rem; color: var(--text); }
+.empty-state p { max-width: 300px; margin: 0 auto 1.5rem; }
+
+/* Pedidos */
+.pedidos-lista { display: flex; flex-direction: column; gap: 1rem; }
+.pedido-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 1.25rem; }
+.pedido-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.pedido-head strong { font-size: 0.95rem; }
+.pedido-head small { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 0.15rem; }
+.pedido-status { padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; text-transform: capitalize; }
+.pedido-status.enviado_whatsapp { background: #e0e7ff; color: #3730a3; }
+.pedido-status.confirmado { background: #dcfce7; color: #047857; }
+.pedido-status.preparando { background: #fef3c7; color: #b45309; }
+.pedido-status.pronto { background: #dbeafe; color: #1d4ed8; }
+.pedido-status.entregue { background: #f3f4f6; color: #374151; }
+.pedido-status.cancelado { background: #fee2e2; color: #b91c1c; }
+.pedido-itens { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.75rem; }
+.pedido-item-mini { display: flex; justify-content: space-between; font-size: 0.88rem; }
+.pedido-item-mini span:first-child { color: var(--text); }
+.pedido-item-mini span:last-child { color: var(--brand-accent); font-weight: 600; }
+.pedido-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.pedido-foot strong { font-size: 1.05rem; }
+.cupom-tag { font-size: 0.78rem; padding: 0.2rem 0.5rem; background: #fef3c7; color: #b45309; border-radius: 999px; font-weight: 600; }
+
+/* Endereços */
+.enderecos-lista { display: flex; flex-direction: column; gap: 0.75rem; }
+.endereco-card { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.25rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); position: relative; }
+.endereco-card.padrao { border-color: var(--brand); background: #f0fdf4; }
+.endereco-card.padrao::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--brand); border-radius: var(--r-md) var(--r-md) 0 0; }
+.badge.padrao { background: var(--brand); color: var(--brand-ink); font-size: 0.65rem; padding: 0.15rem 0.45rem; border-radius: 999px; font-weight: 800; text-transform: uppercase; }
+.endereco-info strong { display: block; margin-bottom: 0.3rem; }
+.endereco-info p { margin: 0.15rem 0; font-size: 0.9rem; }
+.endereco-info small { color: var(--muted); font-size: 0.8rem; }
+.endereco-actions { display: flex; flex-direction: column; gap: 0.4rem; flex-shrink: 0; }
+.endereco-actions .btn { justify-content: center; }
+
+/* Favoritos */
+.favoritos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+
+/* Fidelidade */
+.fidelidade-layout { display: grid; gap: 1.5rem; }
+.fidelidade-resumo { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.fidelidade-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 1.5rem; }
+.fidelidade-card.principal { grid-column: 1 / -1; }
+.fidelidade-pontos { text-align: center; }
+.fidelidade-pontos .label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 0.25rem; }
+.fidelidade-pontos .valor { display: block; font: 800 3.5rem var(--font-head); color: var(--brand); line-height: 1; margin-bottom: 0.25rem; }
+.fidelidade-pontos .sub { color: var(--muted); font-size: 0.85rem; }
+.fidelidade-barra { margin-top: 1rem; }
+.barra-bg { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.barra-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand-dark)); border-radius: 999px; transition: width 0.5s var(--ease); }
+.fidelidade-barra small { display: block; margin-top: 0.5rem; color: var(--muted); text-align: center; }
+.estatisticas { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.estatisticas .stat { text-align: center; }
+.estatisticas .stat strong { display: block; font: 800 2.25rem var(--font-head); color: var(--text); line-height: 1; }
+.estatisticas .stat span { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+
+.resgate-preview { margin-top: 0.75rem; padding: 0.75rem; background: #f0fdf4; border: 1px solid #86efac; border-radius: var(--r-sm); color: #047857; font-weight: 600; font-size: 0.9rem; text-align: center; }
+
+.movimentacoes-lista { display: flex; flex-direction: column; gap: 0.75rem; }
+.movimentacao { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); flex-wrap: wrap; }
+.movimentacao.ganho { border-left: 3px solid var(--ok); }
+.movimentacao.resgate { border-left: 3px solid var(--brand); }
+.movimentacao.expiracao { border-left: 3px solid var(--danger); }
+.movimentacao.ajuste { border-left: 3px solid var(--muted); }
+.mov-info { display: flex; flex-direction: column; gap: 0.2rem; }
+.mov-info strong { font-size: 0.9rem; }
+.mov-info small { color: var(--muted); font-size: 0.8rem; }
+.mov-info time { font-size: 0.75rem; color: var(--muted); }
+.mov-pontos { font-weight: 800; font-size: 1rem; }
+.mov-pontos.ganho { color: var(--ok); }
+.mov-pontos.gasto { color: var(--brand); }
+
+/* Responsivo minha conta */
+@media (max-width: 900px) {
+  .conta-layout { grid-template-columns: 1fr; }
+  .conta-sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 1rem; flex-wrap: wrap; flex-direction: row; align-items: center; gap: 1rem; }
+  .conta-perfil { text-align: left; margin-right: auto; }
+  .conta-avatar { width: 72px; height: 72px; margin: 0; }
+  .conta-nav { flex-direction: row; flex-wrap: wrap; }
+  .conta-nav button { padding: 0.5rem 0.85rem; font-size: 0.82rem; }
+  .conta-main { padding: 1.5rem 1rem 2rem; }
+  .fidelidade-resumo { grid-template-columns: 1fr; }
+  .fidelidade-card.principal { grid-column: auto; }
+}
