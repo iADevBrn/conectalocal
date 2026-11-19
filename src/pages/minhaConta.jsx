@@ -23,6 +23,7 @@ export default function MinhaConta() {
   const {
     cliente,
     usuario,
+    carregando: clienteCarregando,
     salvarPerfil,
     addEndereco,
     editEndereco,
