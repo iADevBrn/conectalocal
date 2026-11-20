@@ -23,31 +23,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-
-    <!-- Evita que o cache offline interfira com os módulos sem hash do Vite. -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        if ('%MODE%' === 'development') {
-          navigator.serviceWorker.getRegistrations().then((registrations) => {
-            const appRegistrations = registrations.filter((registration) =>
-              [registration.active, registration.waiting, registration.installing].some(
-                (worker) => worker?.scriptURL === `${location.origin}/sw.js`
-              )
-            );
-            return Promise.all(appRegistrations.map((registration) => registration.unregister()))
-              .then((removed) => {
-                if (removed.some(Boolean)) location.reload();
-              });
-          }).catch((err) => console.error('Failed to unregister the development service worker:', err));
-        } else {
-          window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js').then(reg => {
-              console.log('SW registered:', reg.scope);
-              setInterval(() => reg.update(), 60 * 60 * 1000);
-            }).catch(err => console.warn('SW registration failed:', err));
-          });
-        }
-      }
-    </script>
   </body>
 </html>

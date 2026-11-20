@@ -364,6 +364,7 @@ export default function MinhaConta() {
                     value={formPerfil.avatar_url}
                     onChange={(avatar_url) => setFormPerfil((f) => ({ ...f, avatar_url }))}
                     onUploadingChange={setUploadandoFoto}
+                    aspectRatio={1}
                     help="Selecione uma imagem do seu computador ou celular (até 5 MB)."
                   />
                 </div>

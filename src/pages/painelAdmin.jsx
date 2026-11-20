@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
 import { escurecerCor } from '../lib/cores';
 import { configAgenda, DIAS_SEMANA, horaSP } from '../lib/agenda';
+import { atualizarStatusPedido as atualizarStatusPedidoApi, listarPedidosLoja } from '../lib/cliente';
 import UploadImagem from '../components/UploadImagem';
 import {
   FONTES, CANTOS, CAPAS, CABECALHOS, LISTAGENS,
@@ -17,6 +18,29 @@ const moeda = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 const fmtData = (iso) =>
   new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short', day: '2-digit', month: '2-digit' });
 const COR_FUNDO_PADRAO = { claro: '#fafafa', suave: '#fbf6ec', escuro: '#050505' };
+const STATUS_PEDIDO = {
+  enviado_whatsapp: 'Aguardando confirmação',
+  confirmado: 'Confirmado',
+  preparando: 'Em preparo',
+  pronto: 'Pronto',
+  entregue: 'Entregue',
+  cancelado: 'Cancelado'
+};
+const ACOES_STATUS_PEDIDO = {
+  enviado_whatsapp: [
+    { status: 'confirmado', rotulo: 'Confirmar' },
+    { status: 'cancelado', rotulo: 'Cancelar', perigo: true }
+  ],
+  confirmado: [
+    { status: 'preparando', rotulo: 'Iniciar preparo' },
+    { status: 'cancelado', rotulo: 'Cancelar', perigo: true }
+  ],
+  preparando: [
+    { status: 'pronto', rotulo: 'Marcar pronto' },
+    { status: 'cancelado', rotulo: 'Cancelar', perigo: true }
+  ],
+  pronto: [{ status: 'entregue', rotulo: 'Marcar entregue' }]
+};
 
 // Grupo de botões de escolha (tema, fonte, cantos...)
 function Opcoes({ valor, opcoes, onChange, estiloFonte = false }) {
@@ -39,51 +63,17 @@ function Opcoes({ valor, opcoes, onChange, estiloFonte = false }) {
   );
 }
 
-function SeletorRGB({ label, cor, onChange, help }) {
-  const hex = corValida(cor, '#000000').slice(1);
-  const rgb = {
-    r: parseInt(hex.slice(0, 2), 16),
-    g: parseInt(hex.slice(2, 4), 16),
-    b: parseInt(hex.slice(4, 6), 16)
-  };
-  const canais = [
-    { id: 'r', nome: 'R' },
-    { id: 'g', nome: 'G' },
-    { id: 'b', nome: 'B' }
-  ];
-  const paraHex = (valores) =>
-    `#${[valores.r, valores.g, valores.b]
-      .map((valor) => Math.round(Math.max(0, Math.min(255, Number(valor) || 0))).toString(16).padStart(2, '0'))
-      .join('')}`;
-
+function SeletorCor({ label, cor, onChange, help }) {
   return (
-    <div className="rgb-field">
+    <div className="color-field">
       <span>{label}</span>
-      <div className="rgb-controls">
-        <input
-          type="color"
-          value={`#${hex}`}
-          onChange={(e) => onChange(e.target.value)}
-          aria-label={`Escolher visualmente ${label.toLowerCase()}`}
-        />
-        <div className="rgb-channels">
-          {canais.map((canal) => (
-            <label key={canal.id} className="rgb-channel">
-              <span>{canal.nome}</span>
-              <input
-                type="number"
-                min="0"
-                max="255"
-                step="1"
-                value={rgb[canal.id]}
-                onChange={(e) => onChange(paraHex({ ...rgb, [canal.id]: e.target.value }))}
-                aria-label={`${label} - canal ${canal.nome}`}
-              />
-            </label>
-          ))}
-        </div>
-      </div>
-      <small>RGB({rgb.r}, {rgb.g}, {rgb.b}) · #{hex.toUpperCase()}</small>
+      <input
+        className="color-picker"
+        type="color"
+        value={corValida(cor, '#000000')}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={`Escolher visualmente ${label.toLowerCase()}`}
+      />
       {help && <small>{help}</small>}
     </div>
   );
@@ -170,6 +160,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
               value={form.logoUrl}
               onChange={(logoUrl) => setForm((f) => ({ ...f, logoUrl }))}
               onUploadingChange={(ativo) => setUploadsAtivos((u) => ({ ...u, logo: ativo }))}
+              aspectRatio={1}
               help="Selecione uma imagem do seu computador ou celular (até 5 MB)."
             />
           </div>
@@ -177,12 +168,12 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
 
         <section className="card">
           <h3>Cores</h3>
-          <SeletorRGB
+          <SeletorCor
             label="Cor da sua marca"
             cor={form.cor}
             onChange={(cor) => setForm((f) => ({ ...f, cor }))}
           />
-          <SeletorRGB
+          <SeletorCor
             label="Fundo da vitrine"
             cor={tema.corFundo || COR_FUNDO_PADRAO[tema.modo]}
             onChange={(corFundo) => setTema('corFundo', corFundo)}
@@ -215,6 +206,7 @@ function AbaAparencia({ loja, onSalvar, salvando }) {
                 value={form.tema.capaUrl}
                 onChange={(capaUrl) => setTema('capaUrl', capaUrl)}
                 onUploadingChange={(ativo) => setUploadsAtivos((u) => ({ ...u, capa: ativo }))}
+                aspectRatio={null}
                 help="Se preencher, a foto substitui o estilo acima. Selecione uma imagem (até 5 MB)."
               />
             </>
@@ -341,6 +333,11 @@ export default function PainelAdmin() {
   const [nomeProfissional, setNomeProfissional] = useState('');
   const [especialidadeProf, setEspecialidadeProf] = useState('');
   const [agendamentos, setAgendamentos] = useState([]);
+  const [pedidos, setPedidos] = useState([]);
+  const [carregandoPedidos, setCarregandoPedidos] = useState(true);
+  const [erroPedidos, setErroPedidos] = useState('');
+  const [pedidoAtualizando, setPedidoAtualizando] = useState(null);
+  const [tentativaPedidos, setTentativaPedidos] = useState(0);
   const [codigoCupom, setCodigoCupom] = useState('');
   const [descontoCupom, setDescontoCupom] = useState('');
 
@@ -369,6 +366,27 @@ export default function PainelAdmin() {
       ativo = false;
     };
   }, [loja?.id]);
+
+  useEffect(() => {
+    if (!slugAtivo || loja?.modo === 'agendamento') return undefined;
+
+    let ativo = true;
+    listarPedidosLoja(slugAtivo)
+      .then((data) => {
+        if (ativo) setPedidos(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar pedidos da loja:', err);
+        if (ativo) setErroPedidos(err.message || 'Não foi possível carregar os pedidos.');
+      })
+      .finally(() => {
+        if (ativo) setCarregandoPedidos(false);
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [slugAtivo, loja?.modo, tentativaPedidos]);
 
   if (carregando) {
     return <div className="v-notfound">Carregando painel...</div>;
@@ -467,6 +485,29 @@ export default function PainelAdmin() {
     }, 'Agendamento cancelado.');
   };
 
+  const handleAtualizarStatusPedido = async (pedido, status) => {
+    const confirmacao = status === 'cancelado'
+      ? 'Cancelar este pedido?'
+      : status === 'entregue'
+        ? 'Confirmar que este pedido foi entregue? Os pontos de fidelidade serão creditados.'
+        : `${ACOES_STATUS_PEDIDO[pedido.status]?.find((acao) => acao.status === status)?.rotulo || 'Atualizar'} este pedido?`;
+    if (!window.confirm(confirmacao)) return;
+
+    setPedidoAtualizando(pedido.id);
+    try {
+      await atualizarStatusPedidoApi(pedido.id, status);
+      setPedidos((lista) => lista.map((item) => (item.id === pedido.id ? { ...item, status } : item)));
+      notificar(status === 'entregue'
+        ? 'Pedido entregue. Os pontos de fidelidade foram creditados.'
+        : 'Status do pedido atualizado.');
+    } catch (err) {
+      console.error('Erro ao atualizar pedido:', err);
+      notificar(`Não foi possível atualizar o pedido: ${err.message || 'erro desconhecido'}`, true);
+    } finally {
+      setPedidoAtualizando(null);
+    }
+  };
+
   const handleCriarProfissional = async (e) => {
     e.preventDefault();
     if (!nomeProfissional || !loja.id) return;
@@ -510,10 +551,14 @@ export default function PainelAdmin() {
 
   const isAgendamento = loja.modo === 'agendamento';
   const futuros = agendamentos.filter((a) => a.status === 'confirmado' && new Date(a.data_horario) > new Date()).length;
+  const pedidosPendentes = pedidos.filter((pedido) => pedido.status === 'enviado_whatsapp').length;
 
   const secoes = [
     { id: 'aparencia', icone: 'fa-palette', rotulo: 'Aparência', titulo: 'Aparência da vitrine', sub: 'Personalize cores, fonte, capa e informações. Veja o resultado ao vivo.' },
     { id: 'produtos', icone: isAgendamento ? 'fa-scissors' : 'fa-utensils', rotulo: isAgendamento ? 'Serviços' : 'Cardápio', titulo: isAgendamento ? 'Serviços e preços' : 'Cardápio e preços', sub: 'Cadastre o que você oferece.' },
+    ...(!isAgendamento
+      ? [{ id: 'pedidos', icone: 'fa-bag-shopping', rotulo: 'Pedidos', count: pedidosPendentes, titulo: 'Pedidos recebidos', sub: 'Acompanhe os pedidos enviados pelo WhatsApp.' }]
+      : []),
     ...(isAgendamento
       ? [
           { id: 'equipe', icone: 'fa-users', rotulo: 'Equipe', titulo: 'Equipe', sub: 'Profissionais que aparecem na hora do agendamento.' },
@@ -530,6 +575,12 @@ export default function PainelAdmin() {
         { r: 'Horários futuros', v: futuros },
         { r: 'Serviços', v: (loja.produtos || []).length },
         { r: 'Profissionais', v: (loja.profissionais || []).length }
+      ]
+    : abaAtiva === 'pedidos'
+    ? [
+        { r: 'Pedidos registrados', v: pedidos.length },
+        { r: 'Aguardando confirmação', v: pedidosPendentes },
+        { r: 'Entregues', v: pedidos.filter((pedido) => pedido.status === 'entregue').length }
       ]
     : [
         { r: 'Itens no cardápio', v: (loja.produtos || []).length },
@@ -587,6 +638,87 @@ export default function PainelAdmin() {
 
         {/* APARÊNCIA */}
         {abaAtiva === 'aparencia' && <AbaAparencia key={loja.id} loja={loja} onSalvar={salvarAparencia} salvando={salvando} />}
+
+        {/* PEDIDOS */}
+        {abaAtiva === 'pedidos' && !isAgendamento && (
+          <div className="card">
+            <h3>Pedidos recentes</h3>
+            {carregandoPedidos ? (
+              <p className="empty" role="status">Carregando pedidos...</p>
+            ) : erroPedidos ? (
+              <div>
+                <p className="alert alert-error" role="alert">{erroPedidos}</p>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    setErroPedidos('');
+                    setCarregandoPedidos(true);
+                    setTentativaPedidos((tentativa) => tentativa + 1);
+                  }}
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            ) : pedidos.length === 0 ? (
+              <p className="empty">Nenhum pedido registrado ainda. Os pedidos de clientes conectados aparecerão aqui.</p>
+            ) : (
+              <div className="admin-pedidos-list">
+                {pedidos.map((pedido) => {
+                  const itens = Array.isArray(pedido.itens) ? pedido.itens : [];
+                  const acoes = ACOES_STATUS_PEDIDO[pedido.status] || [];
+                  const statusClass = pedido.status === 'cancelado' ? 'pill-off' : 'pill-ok';
+                  const mensagemWhatsApp = `Olá${pedido.cliente_nome ? ` ${pedido.cliente_nome}` : ''}, sobre seu pedido #${String(pedido.id).slice(0, 8)}.`;
+
+                  return (
+                    <article key={pedido.id} className="admin-pedido-card">
+                      <div>
+                        <div className="admin-pedido-head">
+                          <strong>Pedido #{String(pedido.id).slice(0, 8)} · {pedido.cliente_nome || 'Cliente'}</strong>
+                          <span className={`pill ${statusClass}`}>{STATUS_PEDIDO[pedido.status] || pedido.status}</span>
+                        </div>
+                        <small>{new Date(pedido.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</small>
+                        <p className="admin-pedido-items">
+                          {itens.map((item) => (
+                            `${item.quantidade}x ${item.nome}${item.opcao ? ` (${item.opcao})` : ''}`
+                          )).join(' · ') || 'Itens do pedido não disponíveis'}
+                        </p>
+                        <small>
+                          Subtotal: {moeda(pedido.subtotal)} · Desconto: {moeda(pedido.desconto)} · Total: <strong>{moeda(pedido.total)}</strong>
+                        </small>
+                        {pedido.cupom_codigo && <small>Cupom: {pedido.cupom_codigo} ({pedido.cupom_desconto_pct}% OFF)</small>}
+                      </div>
+                      <div className="admin-pedido-actions">
+                        {pedido.cliente_telefone && (
+                          <a
+                            className="btn btn-soft btn-sm"
+                            href={`https://wa.me/${normalizarTelefone(pedido.cliente_telefone)}?text=${encodeURIComponent(mensagemWhatsApp)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <i className="fa-brands fa-whatsapp" /> WhatsApp
+                          </a>
+                        )}
+                        {acoes.map((acao) => (
+                          <button
+                            key={acao.status}
+                            type="button"
+                            className={`btn ${acao.perigo ? 'btn-danger' : 'btn-primary'} btn-sm`}
+                            onClick={() => handleAtualizarStatusPedido(pedido, acao.status)}
+                            disabled={pedidoAtualizando === pedido.id}
+                          >
+                            {pedidoAtualizando === pedido.id ? 'Atualizando...' : acao.rotulo}
+                          </button>
+                        ))}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+            <p className="admin-pedido-note">Os pontos de fidelidade são creditados somente quando o pedido é marcado como entregue.</p>
+          </div>
+        )}
 
         {/* PRODUTOS OU SERVIÇOS */}
         {abaAtiva === 'produtos' && (

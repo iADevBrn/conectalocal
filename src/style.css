@@ -98,6 +98,26 @@ button { font-family: inherit; }
 .image-upload-trigger { cursor: pointer; }
 .image-upload-input:focus-visible ~ .image-upload-empty .image-upload-trigger,
 .image-upload-input:focus-visible ~ .image-upload-selected .image-upload-trigger { outline: 3px solid color-mix(in srgb, var(--brand) 35%, transparent); }
+.image-crop-overlay {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center;
+  padding: 1rem; background: rgb(0 0 0 / 0.72); backdrop-filter: blur(4px);
+}
+.image-crop-dialog {
+  width: min(100%, 760px); max-height: calc(100vh - 2rem); overflow-y: auto;
+  padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow-md);
+}
+.image-crop-dialog h2 { margin: 0 0 0.35rem; font-size: 1.25rem; }
+.image-crop-dialog > p { margin-bottom: 0.85rem; color: var(--muted); font-size: 0.9rem; }
+.image-crop-note { display: block; margin: -0.35rem 0 0.75rem; color: var(--muted); }
+.image-crop-stage {
+  display: flex; justify-content: center; align-items: center; overflow: auto;
+  max-height: min(60vh, 560px); min-height: 120px; padding: 0.6rem;
+  border-radius: var(--r-md); background: #111;
+}
+.image-crop-stage .ReactCrop { max-width: 100%; max-height: 100%; }
+.image-crop-preview { display: block; max-width: 100%; max-height: min(56vh, 520px); width: auto; height: auto; }
+.image-crop-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
 .field input:focus, .field select:focus, .field textarea:focus {
   outline: 3px solid color-mix(in srgb, var(--brand) 30%, transparent); border-color: var(--brand);
 }
@@ -163,7 +183,7 @@ button { font-family: inherit; }
 }
 .v-topbar-in { display: flex; align-items: center; justify-content: space-between; height: 60px; }
 .v-brand { display: flex; align-items: center; gap: 0.6rem; font: 700 1rem var(--font-head); min-width: 0; }
-.v-brand img { width: 34px; height: 34px; border-radius: var(--r-sm); object-fit: contain; background: var(--surface-2); flex: none; }
+.v-brand img { width: 34px; height: 34px; border-radius: var(--r-sm); object-fit: cover; background: var(--surface-2); flex: none; }
 .v-brand > svg { flex: none; }
 .v-brand span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .v-cart-btn {
@@ -191,7 +211,7 @@ button { font-family: inherit; }
 .v-hero-body { position: relative; display: grid; gap: 0.8rem; margin-top: -54px; padding-bottom: 0.5rem; }
 .v-hero.is-compact .v-hero-body { margin-top: 0; padding-top: 1.75rem; }
 .v-avatar {
-  width: 108px; height: 108px; border-radius: var(--r-lg); object-fit: contain; padding: 0.5rem;
+  width: 108px; height: 108px; border-radius: var(--r-lg); object-fit: cover; padding: 0;
   background: var(--surface); border: 4px solid var(--bg); box-shadow: var(--shadow-md); overflow: hidden;
 }
 .v-avatar > svg { display: block; width: 100%; height: 100%; }
@@ -481,15 +501,10 @@ button { font-family: inherit; }
 .opt small { color: var(--muted); font-size: 0.74rem; }
 .opt:hover { border-color: #d4d4d4; }
 .opt[aria-pressed='true'] { border-color: var(--brand); background: #f0fdf4; box-shadow: 0 0 0 3px rgb(4 120 87 / 0.14); }
-.rgb-field { display: grid; gap: 0.55rem; margin-bottom: 1.15rem; }
-.rgb-field > span { font-weight: 600; font-size: 0.84rem; color: var(--text); }
-.rgb-field > small { color: var(--muted); font-size: 0.78rem; }
-.rgb-controls { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 0.75rem; }
-.rgb-controls > input[type='color'] { width: 52px; height: 44px; padding: 3px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); cursor: pointer; }
-.rgb-channels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
-.rgb-channel { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.35rem; }
-.rgb-channel > span { font-size: 0.78rem; font-weight: 700; color: var(--text); }
-.rgb-channel input { width: 100%; min-width: 0; padding: 0.6rem !important; }
+.color-field { display: grid; gap: 0.55rem; margin-bottom: 1.15rem; }
+.color-field > span { font-weight: 600; font-size: 0.84rem; color: var(--text); }
+.color-field > small { color: var(--muted); font-size: 0.78rem; }
+.color-picker { width: 52px; height: 44px; padding: 3px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); cursor: pointer; }
 .toast-admin { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 400; padding: 0.85rem 1.25rem; border-radius: 14px; color: #fff; font-weight: 600; box-shadow: var(--shadow-md); max-width: min(420px, 90vw); }
 .toast-admin.ok { background: #15803d; }
 .toast-admin.err { background: #b91c1c; }
@@ -634,6 +649,13 @@ button { font-family: inherit; }
 .pedido-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-top: 0.75rem; border-top: 1px solid var(--border); }
 .pedido-foot strong { font-size: 1.05rem; }
 .cupom-tag { font-size: 0.78rem; padding: 0.2rem 0.5rem; background: #fef3c7; color: #b45309; border-radius: 999px; font-weight: 600; }
+.admin-pedidos-list { display: grid; gap: 0.75rem; }
+.admin-pedido-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.admin-pedido-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.3rem; }
+.admin-pedido-card small { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+.admin-pedido-items { margin: 0.5rem 0; font-size: 0.9rem; }
+.admin-pedido-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: start; gap: 0.4rem; }
+.admin-pedido-note { margin-top: 1rem; color: var(--muted); font-size: 0.82rem; }
 
 /* Endereços */
 .enderecos-lista { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -695,4 +717,9 @@ button { font-family: inherit; }
   .conta-main { padding: 1.5rem 1rem 2rem; }
   .fidelidade-resumo { grid-template-columns: 1fr; }
   .fidelidade-card.principal { grid-column: auto; }
+}
+@media (max-width: 680px) {
+  .admin-pedido-card { grid-template-columns: 1fr; }
+  .admin-pedido-actions { justify-content: flex-start; }
+  .admin-pedido-head { align-items: flex-start; flex-direction: column; }
 }
