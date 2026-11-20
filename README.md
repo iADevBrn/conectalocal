@@ -1,4 +1,3 @@
-
 # ConectaLocal
 
 SaaS multi-loja (cardápio com sacola via WhatsApp e agenda online) feito com React + Vite + Supabase.
