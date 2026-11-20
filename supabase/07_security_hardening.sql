@@ -1,6 +1,11 @@
 -- ConectaLocal: validação server-side de pedidos, cupons e slugs.
 -- Rode depois de supabase/06_storage_imagens.sql.
 
+alter table public.cupons
+  add column if not exists expira_em timestamptz,
+  add column if not exists uso_maximo integer,
+  add column if not exists uso_atual integer not null default 0;
+
 do $$
 declare
   v_slugs_duplicados text;
