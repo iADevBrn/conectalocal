@@ -1,7 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
-import { configAgenda, gerarHorarios, diaFunciona, horarioDisponivel, hojeSP, horaSP, horaAgoraSP } from '../lib/agenda';
+import { configAgenda, gerarHorarios, diaFunciona, horarioDisponivel, hojeSP, horaSP, horaAgoraSP, criarDataHorarioISO } from '../lib/agenda';
+
+const formatarMoeda = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+const iniciais = (nome = '') =>
+  nome
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() || '')
+    .join('');
 
 export default function AgendaBarbearia({ loja }) {
   const [servicoSelecionado, setServicoSelecionado] = useState(null);
@@ -18,12 +27,12 @@ export default function AgendaBarbearia({ loja }) {
   const [linkWhats, setLinkWhats] = useState('');
   const [versao, setVersao] = useState(0); // força recarregar horários ocupados
 
-  // Busca horários já ocupados para aquele barbeiro na data escolhida
+  // Busca horários já ocupados para o profissional na data escolhida
   useEffect(() => {
     if (!profissionalSelecionado || !dataEscolhida) return;
 
     const carregarOcupados = async () => {
-      // RPC devolve só os horários (sem nome/telefone de clientes), então a tabela
+      // A função devolve só os horários (sem nome/telefone de clientes), então a tabela
       // de agendamentos não precisa ser pública.
       const { data, error } = await supabase.rpc('horarios_ocupados', {
         p_profissional_id: profissionalSelecionado.id,
@@ -53,11 +62,12 @@ export default function AgendaBarbearia({ loja }) {
     }
 
     setEnviando(true);
-    // Horário de Brasília (UTC-3, sem horário de verão): não depende do fuso do aparelho do cliente.
-    const dataHorarioISO = new Date(`${dataEscolhida}T${horarioEscolhido}:00-03:00`).toISOString();
+    // Converte data/hora do fuso America/Sao_Paulo para ISO (UTC) corretamente,
+    // considerando horário de verão se houver, sem depender do fuso do navegador.
+    const dataHorarioISO = criarDataHorarioISO(dataEscolhida, horarioEscolhido);
 
     // A criação passa por uma função no banco que valida loja/profissional/serviço
-    // e impede dois clientes no mesmo horário (índice único).
+    // e impede dois clientes no mesmo horário.
     const { error } = await supabase.rpc('criar_agendamento', {
       p_loja_id: loja.id,
       p_profissional_id: profissionalSelecionado.id,
@@ -84,7 +94,8 @@ export default function AgendaBarbearia({ loja }) {
       return;
     }
 
-    const msg = `Olá! Acabei de agendar um horário em *${loja.nome}*:\n\n` +
+    const msg =
+      `Olá! Acabei de agendar um horário em *${loja.nome}*:\n\n` +
       `• *Serviço:* ${servicoSelecionado.nome}\n` +
       `• *Profissional:* ${profissionalSelecionado.nome}\n` +
       `• *Data:* ${dataEscolhida.split('-').reverse().join('/')} às ${horarioEscolhido}\n` +
@@ -101,134 +112,118 @@ export default function AgendaBarbearia({ loja }) {
 
   if (confirmado) {
     return (
-      <div className="checkout-card" style={{ maxWidth: '550px', margin: '3rem auto', textAlign: 'center', background: '#fff' }}>
-        <div style={{ fontSize: '3rem', color: '#16a34a' }}>✓</div>
-        <h2>Horário Agendado!</h2>
-        <p style={{ color: '#57534e', margin: '0.75rem 0 1.5rem' }}>
-          Seu horário para <strong>{servicoSelecionado.nome}</strong> com <strong>{profissionalSelecionado.nome}</strong> no dia{' '}
+      <div className="ag-step ag-done">
+        <div className="ag-done-icon"><i className="fa-solid fa-check" /></div>
+        <h2>Horário agendado!</h2>
+        <p>
+          <strong>{servicoSelecionado.nome}</strong> com <strong>{profissionalSelecionado.nome}</strong> no dia{' '}
           <strong>{dataEscolhida.split('-').reverse().join('/')} às {horarioEscolhido}</strong> está reservado.
         </p>
-        <a
-          href={linkWhats}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-primary"
-          style={{ display: 'inline-block', textDecoration: 'none', marginBottom: '0.75rem' }}
-        >
-          Enviar confirmação no WhatsApp
-        </a>
-        <br />
-        <button
-          onClick={() => {
-            setConfirmado(false);
-            setHorarioEscolhido('');
-            setVersao((v) => v + 1);
-          }}
-          style={{ background: 'none', border: 'none', color: '#78716c', cursor: 'pointer', fontWeight: 600 }}
-        >
-          Fazer novo agendamento
-        </button>
+        <div className="ag-done-actions">
+          <a href={linkWhats} target="_blank" rel="noopener noreferrer" className="btn btn-whats btn-lg">
+            <i className="fa-brands fa-whatsapp" /> Enviar confirmação no WhatsApp
+          </a>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              setConfirmado(false);
+              setHorarioEscolhido('');
+              setVersao((v) => v + 1);
+            }}
+          >
+            Fazer novo agendamento
+          </button>
+        </div>
       </div>
     );
   }
 
+  const profissionais = loja.profissionais || [];
+
   return (
-    <div style={{ maxWidth: '780px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+    <div className="ag">
       {/* PASSO 1: SERVIÇO */}
-      <div className="checkout-card" style={{ background: '#fff' }}>
-        <h3>1. Escolha o Serviço</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-          {(loja.produtos || []).map((serv) => {
-            const ativo = servicoSelecionado?.id === serv.id;
-            return (
-              <div
+      <div className="ag-step">
+        <div className="ag-head"><span className="ag-num">1</span><h3>Escolha o serviço</h3></div>
+        {(loja.produtos || []).length === 0 ? (
+          <p style={{ color: 'var(--muted)' }}>Este estabelecimento ainda não cadastrou serviços.</p>
+        ) : (
+          <div className="ag-options">
+            {(loja.produtos || []).map((serv) => (
+              <button
                 key={serv.id}
+                type="button"
+                className="ag-option"
+                aria-pressed={servicoSelecionado?.id === serv.id}
                 onClick={() => {
                   setServicoSelecionado(serv);
                   setHorarioEscolhido('');
                 }}
-                style={{
-                  padding: '1rem',
-                  borderRadius: '0.75rem',
-                  border: ativo ? `2px solid ${loja.corPrimaria}` : '1px solid #e7e5e4',
-                  background: ativo ? '#fffbeb' : '#fff',
-                  cursor: 'pointer'
-                }}
               >
                 <strong>{serv.nome}</strong>
-                <p style={{ fontSize: '0.85rem', color: '#78716c', margin: '0.25rem 0' }}>{serv.descricao}</p>
-                <span style={{ fontWeight: 700, color: loja.corPrimaria }}>
-                  R$ {Number(serv.preco).toFixed(2).replace('.', ',')}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                {serv.descricao && <p>{serv.descricao}</p>}
+                <span className="ag-price">{formatarMoeda(serv.preco)}</span>
+                <span className="ag-dur"><i className="fa-regular fa-clock" /> {Number(serv.duracao_minutos) || 30} min</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* PASSO 2: PROFISSIONAL */}
       {servicoSelecionado && (
-        <div className="checkout-card" style={{ background: '#fff' }}>
-          <h3>2. Escolha o Profissional</h3>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-            {(loja.profissionais || []).map((prof) => {
-              const ativo = profissionalSelecionado?.id === prof.id;
-              return (
+        <div className="ag-step">
+          <div className="ag-head"><span className="ag-num">2</span><h3>Escolha o profissional</h3></div>
+          {profissionais.length === 0 ? (
+            <p style={{ color: 'var(--muted)' }}>Nenhum profissional disponível no momento.</p>
+          ) : (
+            <div className="ag-options">
+              {profissionais.map((prof) => (
                 <button
                   key={prof.id}
                   type="button"
+                  className="ag-option ag-pro"
+                  aria-pressed={profissionalSelecionado?.id === prof.id}
                   onClick={() => {
                     setProfissionalSelecionado(prof);
                     setHorarioEscolhido('');
                   }}
-                  style={{
-                    padding: '0.9rem 1.4rem',
-                    borderRadius: '0.75rem',
-                    border: ativo ? `2px solid ${loja.corPrimaria}` : '1px solid #d6d3d1',
-                    background: ativo ? loja.corPrimaria : '#fff',
-                    color: ativo ? '#fff' : '#1c1917',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
                 >
-                  {prof.nome}
-                  {prof.especialidade && <small style={{ display: 'block', fontWeight: 400 }}>{prof.especialidade}</small>}
+                  <span className="ag-avatar">{iniciais(prof.nome)}</span>
+                  <span>
+                    <strong>{prof.nome}</strong>
+                    {prof.especialidade && <p style={{ margin: 0 }}>{prof.especialidade}</p>}
+                  </span>
                 </button>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* PASSO 3: DATA E HORÁRIO */}
       {profissionalSelecionado && (
-        <div className="checkout-card" style={{ background: '#fff' }}>
-          <h3>3. Escolha a Data e o Horário</h3>
-          <label className="field" style={{ maxWidth: '240px', marginTop: '1rem' }}>
+        <div className="ag-step">
+          <div className="ag-head"><span className="ag-num">3</span><h3>Escolha a data e o horário</h3></div>
+          <label className="field" style={{ maxWidth: 240 }}>
             <span>Data</span>
             <input
               type="date"
               value={dataEscolhida}
               min={hojeSP()}
               onChange={(e) => {
-                setDataEscolhida(e.target.value);
+                setDataEscolhida(e.target.value || hojeSP());
                 setHorarioEscolhido('');
               }}
             />
           </label>
 
-          {erroAgenda && (
-            <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.7rem 1rem', borderRadius: '0.6rem', marginTop: '1rem', fontSize: '0.9rem' }}>
-              {erroAgenda}
-            </div>
-          )}
+          {erroAgenda && <div className="alert alert-error">{erroAgenda}</div>}
 
           {!diaAberto ? (
-            <p style={{ marginTop: '1rem', color: '#b91c1c', fontWeight: 600 }}>
-              Não atendemos neste dia. Escolha outra data.
-            </p>
+            <p className="ag-closed">Não atendemos neste dia. Escolha outra data.</p>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))', gap: '0.6rem', marginTop: '1rem' }}>
+            <div className="ag-times">
               {horarios.map((hora) => {
                 const livre = horarioDisponivel({
                   cfg,
@@ -238,24 +233,13 @@ export default function AgendaBarbearia({ loja }) {
                   hoje: dataEscolhida === hojeSP(),
                   agora: horaAgoraSP()
                 });
-                const ocupado = !livre;
-                const selecionado = horarioEscolhido === hora;
                 return (
                   <button
                     key={hora}
                     type="button"
-                    disabled={ocupado}
+                    disabled={!livre}
+                    className={`ag-time ${horarioEscolhido === hora ? 'sel' : ''}`}
                     onClick={() => setHorarioEscolhido(hora)}
-                    style={{
-                      padding: '0.65rem',
-                      borderRadius: '0.5rem',
-                      border: selecionado ? `2px solid ${loja.corPrimaria}` : '1px solid #d6d3d1',
-                      background: ocupado ? '#f5f5f4' : selecionado ? loja.corPrimaria : '#fff',
-                      color: ocupado ? '#a8a29e' : selecionado ? '#fff' : '#1c1917',
-                      textDecoration: ocupado ? 'line-through' : 'none',
-                      cursor: ocupado ? 'not-allowed' : 'pointer',
-                      fontWeight: 600
-                    }}
                   >
                     {hora}
                   </button>
@@ -266,20 +250,22 @@ export default function AgendaBarbearia({ loja }) {
         </div>
       )}
 
-      {/* PASSO 4: DADOS DO CLIENTE E CONFIRMAÇÃO */}
+      {/* PASSO 4: DADOS DO CLIENTE */}
       {horarioEscolhido && (
-        <form onSubmit={confirmarAgendamento} className="checkout-card" style={{ background: '#fff' }}>
-          <h3>4. Seus Dados para Confirmar</h3>
-          <label className="field">
-            <span>Seu Nome</span>
-            <input value={clienteNome} onChange={(e) => setClienteNome(e.target.value)} placeholder="Como devemos te chamar?" required />
-          </label>
-          <label className="field">
-            <span>Seu WhatsApp</span>
-            <input value={clienteTelefone} onChange={(e) => setClienteTelefone(e.target.value)} placeholder="(43) 99999-9999" required />
-          </label>
-          <button type="submit" disabled={enviando} className="btn-primary" style={{ width: '100%', border: 'none', cursor: 'pointer', marginTop: '0.5rem' }}>
-            {enviando ? 'Reservando horário...' : `Confirmar Agendamento (${horarioEscolhido})`}
+        <form onSubmit={confirmarAgendamento} className="ag-step">
+          <div className="ag-head"><span className="ag-num">4</span><h3>Seus dados</h3></div>
+          <div className="field-row">
+            <label className="field">
+              <span>Seu nome</span>
+              <input value={clienteNome} onChange={(e) => setClienteNome(e.target.value)} placeholder="Como devemos te chamar?" maxLength={80} required />
+            </label>
+            <label className="field">
+              <span>Seu WhatsApp</span>
+              <input value={clienteTelefone} onChange={(e) => setClienteTelefone(e.target.value)} placeholder="(43) 99999-9999" inputMode="tel" required />
+            </label>
+          </div>
+          <button type="submit" disabled={enviando} className="btn btn-primary btn-block btn-lg">
+            {enviando ? 'Reservando horário...' : `Confirmar agendamento às ${horarioEscolhido}`}
           </button>
         </form>
       )}

@@ -1,8 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { LojaContext } from './lojaContextApi';
 import { supabase } from '../lib/supabase';
 import { LOJAS_MOCK } from '../data/mockLojas';
-
-const LojaContext = createContext();
 
 // Toda escrita no Supabase passa por aqui: se der erro, lança para a tela mostrar.
 const checar = ({ error }) => {
@@ -16,7 +15,7 @@ function mapearLoja(l) {
     ...l,
     corPrimaria: l.cor_primaria || '#b45309',
     corSecundaria: l.cor_secundaria || '#92400e',
-    logo: l.logo_url || '/logotipo.png',
+    logo: l.logo_url || null,
     categorias: [...(l.categorias || [])].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)),
     profissionais: l.profissionais || [],
     cupons: [], // cupons NÃO são públicos: só o dono os carrega (veja carregarDadosNuvem)
@@ -128,7 +127,9 @@ export function LojaProvider({ children }) {
           telefone: novosDados.telefone,
           modo: novosDados.modo || loja.modo,
           cor_primaria: novosDados.corPrimaria,
-          cor_secundaria: novosDados.corSecundaria
+          cor_secundaria: novosDados.corSecundaria,
+          ...(Object.hasOwn(novosDados, 'logoUrl') ? { logo_url: novosDados.logoUrl || null } : {}),
+          ...(novosDados.personalizacao ? { personalizacao: novosDados.personalizacao } : {})
         })
         .eq('id', loja.id)
     );
@@ -259,5 +260,3 @@ export function LojaProvider({ children }) {
     </LojaContext.Provider>
   );
 }
-
-export const useLojas = () => useContext(LojaContext);

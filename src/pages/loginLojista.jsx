@@ -1,13 +1,19 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
 
 // Links que já são rotas do sistema (ou que causariam confusão) não podem virar loja.
-const SLUGS_RESERVADOS = ['admin', 'login', 'api', 'www', 'app', 'painel', 'cadastro', 'suporte', 'ajuda', 'termos', 'privacidade'];
+const SLUGS_RESERVADOS = [
+  'admin', 'login', 'api', 'www', 'app', 'painel', 'cadastro', 'suporte', 'ajuda', 'termos', 'privacidade',
+  'raizes', 'doceria-ana', 'conectalocal', 'contato', 'precos', 'planos', 'blog'
+];
 
 export default function LoginLojista() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const tipo = searchParams.get('tipo') || 'lojista'; // 'lojista' | 'cliente'
+
   const [modoCadastro, setModoCadastro] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
@@ -17,20 +23,20 @@ export default function LoginLojista() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
 
-  // Campos da loja (usados no cadastro)
+  // Campos da loja (usados no cadastro de lojista)
   const [nomeLoja, setNomeLoja] = useState('');
   const [slug, setSlug] = useState('');
   const [telefone, setTelefone] = useState('');
   const [modoNegocio, setModoNegocio] = useState('catalogo');
 
-  const formatarSlug = (texto) => {
-    return texto
+  const formatarSlug = (texto) =>
+    texto
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)+/g, '');
-  };
+      .replace(/(^-|-$)+/g, '')
+      .slice(0, 40);
 
   const handleNomeChange = (valor) => {
     setNomeLoja(valor);
@@ -44,6 +50,7 @@ export default function LoginLojista() {
     setCarregando(true);
 
     try {
+      // --- FLUXO LOJISTA ---
       if (!modoCadastro) {
         // LOGIN DE LOJISTA EXISTENTE
         const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
@@ -51,17 +58,14 @@ export default function LoginLojista() {
         navigate('/admin');
       } else {
         // CADASTRO DE NOVO LOJISTA + CRIAÇÃO DA LOJA
-        if (!slug) throw new Error('Defina um link válido para sua loja.');
+        if (slug.length < 3) throw new Error('O link da loja precisa ter pelo menos 3 caracteres.');
         if (SLUGS_RESERVADOS.includes(slug)) throw new Error('Esse link é reservado pelo sistema. Escolha outro.');
         if (telefone.replace(/\D/g, '').length < 10) throw new Error('Informe o WhatsApp com DDD.');
 
-        // Confere o link ANTES de criar a conta (evita conta sem loja).
         const { data: disponivel, error: slugError } = await supabase.rpc('slug_disponivel', { p_slug: slug });
         if (slugError) throw slugError;
         if (!disponivel) throw new Error('Esse link já está em uso ou é reservado. Escolha outro.');
 
-        // Os dados da loja viajam junto com o cadastro; um trigger no banco cria a loja e a
-        // categoria padrão na mesma transação da conta (funciona com ou sem confirmação de e-mail).
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
           password: senha,
@@ -76,7 +80,6 @@ export default function LoginLojista() {
         });
         if (authError) throw authError;
 
-        // E-mail já cadastrado: o Supabase não dá erro, devolve usuário sem identidades.
         if (authData.user && authData.user.identities?.length === 0) {
           throw new Error('Este e-mail já está cadastrado. Faça login.');
         }
@@ -100,132 +103,142 @@ export default function LoginLojista() {
     }
   };
 
-  return (
-    <div style={{ minHeight: '100vh', background: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
-      <div className="checkout-card" style={{ width: '100%', maxWidth: '460px', background: '#fff', padding: '2.25rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '2px', color: '#b45309', textTransform: 'uppercase' }}>
-            ConectaLocal
-          </span>
-          <h2 style={{ marginTop: '0.35rem', fontSize: '1.75rem' }}>
-            {modoCadastro ? 'Criar Minha Vitrine' : 'Painel do Lojista'}
-          </h2>
-          <p style={{ color: '#78716c', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-            {modoCadastro
-              ? 'Configure seu cardápio ou agenda em menos de 1 minuto.'
-              : 'Entre com seu e-mail e senha para gerenciar seu negócio.'}
-          </p>
-        </div>
+  // Detecta se veio de magic link/OTP (session na URL)
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && tipo !== 'cliente') {
+        navigate('/admin');
+      }
+    };
+    checkSession();
+  }, [navigate, tipo]);
 
-        {erro && (
-          <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '0.75rem 1rem', borderRadius: '0.6rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
-            {erro}
-          </div>
-        )}
+  const isCliente = tipo === 'cliente';
 
-        {aviso && (
-          <div style={{ background: '#dcfce7', color: '#15803d', padding: '0.75rem 1rem', borderRadius: '0.6rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
-            {aviso}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          {modoCadastro && (
-            <>
-              <label className="field">
-                <span>Tipo de Negócio</span>
-                <select
-                  value={modoNegocio}
-                  onChange={(e) => setModoNegocio(e.target.value)}
-                  style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid #d6d3d1', fontWeight: 600 }}
-                >
-                  <option value="catalogo">Cardápio / Catálogo (Restaurante, Doceria, Loja)</option>
-                  <option value="agendamento">Agendamento de Horários (Barbearia, Estética, Clínica)</option>
-                </select>
-              </label>
-
-              <label className="field">
-                <span>Nome do Estabelecimento</span>
-                <input
-                  value={nomeLoja}
-                  onChange={(e) => handleNomeChange(e.target.value)}
-                  placeholder="Ex: Barbearia Don Leon"
-                  required
-                />
-              </label>
-
-              <label className="field">
-                <span>Link Personalizado da sua Loja</span>
-                <div style={{ display: 'flex', alignItems: 'center', background: '#fafaf9', border: '1px solid #d6d3d1', borderRadius: '0.6rem', padding: '0 0.75rem' }}>
-                  <span style={{ color: '#78716c', fontSize: '0.85rem' }}>conectalocal.com.br/</span>
-                  <input
-                    value={slug}
-                    onChange={(e) => setSlug(formatarSlug(e.target.value))}
-                    placeholder="sua-loja"
-                    required
-                    style={{ border: 'none', background: 'transparent', padding: '0.7rem 0.25rem', flex: 1, outline: 'none', fontWeight: 600 }}
-                  />
-                </div>
-              </label>
-
-              <label className="field">
-                <span>WhatsApp (com DDD)</span>
-                <input
-                  value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
-                  placeholder="43999999999"
-                  required
-                />
-              </label>
-            </>
-          )}
-
-          <label className="field">
-            <span>E-mail de Acesso</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seuemail@exemplo.com"
-              required
-            />
-          </label>
-
-          <label className="field">
-            <span>Senha</span>
-            <input
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
-              minLength={6}
-              required
-            />
-          </label>
-
-          <button
-            type="submit"
-            disabled={carregando}
-            className="btn-primary"
-            style={{ width: '100%', border: 'none', cursor: 'pointer', marginTop: '0.5rem' }}
-          >
-            {carregando ? 'Aguarde...' : modoCadastro ? 'Criar Minha Conta e Loja' : 'Entrar no Painel'}
-          </button>
-        </form>
-
-        <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid #e7e5e4' }}>
-          <button
-            type="button"
-            onClick={() => {
-              setModoCadastro(!modoCadastro);
-              setErro('');
-            }}
-            style={{ background: 'none', border: 'none', color: '#b45309', fontWeight: 600, cursor: 'pointer' }}
-          >
-            {modoCadastro ? 'Já tenho uma conta? Fazer Login' : 'Ainda não tem vitrine? Cadastre-se grátis'}
-          </button>
+  if (isCliente) {
+    return (
+      <div className="v-notfound" style={{ minHeight: '100vh' }}>
+        <div>
+          <h1>Acesse pela vitrine da loja</h1>
+          <p>Para entrar como cliente, abra a loja e toque em “Sou cliente”.</p>
+          <Link to="/" className="btn btn-primary">Voltar ao início</Link>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="auth">
+      <aside className="auth-side">
+        <Link to="/" className="lp-logo">
+          <svg width="38" height="38" viewBox="0 0 38 38" fill="none" aria-hidden="true"><rect width="38" height="38" rx="10" fill="#0a0a0a"/><path d="M11 19h16M19 11v16" stroke="white" strokeWidth="3" strokeLinecap="round"/></svg>
+          ConectaLocal
+        </Link>
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <h2>Sua vitrine com a cara do seu negócio.</h2>
+          <ul className="auth-list">
+            <li><i className="fa-solid fa-check" /> Link próprio para colocar no Instagram e no WhatsApp</li>
+            <li><i className="fa-solid fa-check" /> Pedidos ou agendamentos direto no seu WhatsApp</li>
+            <li><i className="fa-solid fa-check" /> Cores, fontes e estilo do jeito que você quiser</li>
+            <li><i className="fa-solid fa-check" /> Painel simples, feito para o celular</li>
+          </ul>
+        </div>
+
+        <small style={{ opacity: 0.75, position: 'relative', zIndex: 1 }}>© 2026 ConectaLocal</small>
+      </aside>
+
+      <main className="auth-main">
+        <div className="auth-card">
+          <>
+            <h1>{modoCadastro ? 'Crie sua vitrine' : 'Bem-vindo de volta'}</h1>
+              <p>
+                {modoCadastro
+                  ? 'Em poucos minutos seu negócio estará no ar.'
+                  : 'Entre com seu e-mail e senha para gerenciar seu negócio.'}
+              </p>
+
+              {erro && <div className="alert alert-error" role="alert">{erro}</div>}
+              {aviso && <div className="alert alert-ok" role="status">{aviso}</div>}
+
+              <form onSubmit={handleSubmit}>
+                {modoCadastro && (
+                  <>
+                    <div className="choice-grid" role="group" aria-label="Tipo de negócio">
+                      <button type="button" className="choice" aria-pressed={modoNegocio === 'catalogo'} onClick={() => setModoNegocio('catalogo')}>
+                        <i className="fa-solid fa-utensils" />
+                        <strong>Cardápio</strong>
+                        <small>Restaurante, doceria, loja</small>
+                      </button>
+                      <button type="button" className="choice" aria-pressed={modoNegocio === 'agendamento'} onClick={() => setModoNegocio('agendamento')}>
+                        <i className="fa-solid fa-calendar-check" />
+                        <strong>Agendamento</strong>
+                        <small>Barbearia, estética, clínica</small>
+                      </button>
+                    </div>
+
+                    <label className="field">
+                      <span>Nome do estabelecimento</span>
+                      <input value={nomeLoja} onChange={(e) => handleNomeChange(e.target.value)} placeholder="Ex: Barbearia Don Leon" maxLength={80} required />
+                    </label>
+
+                    <label className="field">
+                      <span>Link da sua loja</span>
+                      <div className="input-prefix">
+                        <span>conectalocal.com.br/</span>
+                        <input value={slug} onChange={(e) => setSlug(formatarSlug(e.target.value))} placeholder="sua-loja" required />
+                      </div>
+                      <small>Só letras minúsculas, números e hífen.</small>
+                    </label>
+
+                    <label className="field">
+                      <span>WhatsApp (com DDD)</span>
+                      <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="43999999999" inputMode="tel" required />
+                    </label>
+                  </>
+                )}
+
+                <label className="field">
+                  <span>E-mail de acesso</span>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seuemail@exemplo.com" autoComplete="email" required />
+                </label>
+
+                <label className="field">
+                  <span>Senha</span>
+                  <input
+                    type="password"
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
+                    placeholder={modoCadastro ? 'Mínimo 8 caracteres' : 'Sua senha'}
+                    minLength={modoCadastro ? 8 : undefined}
+                    autoComplete={modoCadastro ? 'new-password' : 'current-password'}
+                    required
+                  />
+                </label>
+
+                <button type="submit" disabled={carregando} className="btn btn-primary btn-block btn-lg">
+                  {carregando ? 'Aguarde...' : modoCadastro ? 'Criar minha conta e loja' : 'Entrar no painel'}
+                </button>
+              </form>
+
+              <div className="auth-switch">
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => {
+                    setModoCadastro(!modoCadastro);
+                    setErro('');
+                    setAviso('');
+                  }}
+                >
+                  {modoCadastro ? 'Já tenho uma conta? Fazer login' : 'Ainda não tem vitrine? Cadastre-se'}
+                </button>
+              </div>
+          </>
+          <Link to="/" className="auth-back">← Voltar ao início</Link>
+        </div>
+      </main>
     </div>
   );
 }

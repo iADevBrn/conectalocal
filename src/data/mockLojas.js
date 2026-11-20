@@ -5,9 +5,10 @@ export const LOJAS_MOCK = {
     nome: "Raízes",
     subtitulo: "COZINHA ORIGEM",
     telefone: "5543999999999",
-    logo: "/logotipo.png",
+    logo: null,
     corPrimaria: "#b45309",   // Laranja/Âmbar original do Raízes
     corSecundaria: "#92400e",
+    personalizacao: { modo: "escuro", fonte: "elegante", cantos: "suave", capa: "pontos", cabecalho: "capa", listagem: "grade", sobre: "Sabores autênticos da Colômbia, feitos na brasa.", horarioTexto: "Ter a Dom, das 18h às 23h" },
     cupons: [
       { codigo: "BEMVINDO10", descontoPercentual: 10 },
       { codigo: "RAIZES20", descontoPercentual: 20 }
@@ -72,9 +73,10 @@ export const LOJAS_MOCK = {
     nome: "Doceria da Ana",
     subtitulo: "CONFEITARIA ARTESANAL",
     telefone: "5543988888888",
-    logo: "/logotipo.png",
+    logo: null,
     corPrimaria: "#be185d",   // Rosa escuro (muda o site inteiro automaticamente)
     corSecundaria: "#9d174d",
+    personalizacao: { modo: "suave", fonte: "amigavel", cantos: "redondo", capa: "gradiente", cabecalho: "capa", listagem: "grade", sobre: "Doces e bolos artesanais, feitos com carinho para o seu momento especial.", horarioTexto: "Seg a Sáb, das 9h às 18h" },
     cupons: [
       { codigo: "DOCE15", descontoPercentual: 15 }
     ],

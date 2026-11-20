@@ -1,13 +1,35 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { useLojas } from '../context/lojaContext';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useLojas } from '../context/lojaContextApi';
+import { useCliente } from '../context/clienteContextApi';
 import { supabase } from '../lib/supabase';
 import { normalizarTelefone } from '../lib/telefone';
+import { lerTema } from '../lib/tema';
+import { formatarTelefoneExibicao, gerarAvatarIniciais } from '../lib/cliente';
 import AgendaBarbearia from '../components/agendaBarbearia';
+import TemaLoja from '../components/TemaLoja';
+import HeroLoja from '../components/HeroLoja';
+
+const formatarMoeda = (valor) => 'R$ ' + Number(valor).toFixed(2).replace('.', ',');
 
 export default function VitrineLoja() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const { lojas, carregando, carregarLojaPorSlug } = useLojas();
+  const {
+    cliente,
+    usuario,
+    carregandoPerfil,
+    definirLojaAtual,
+    loginComEmail,
+    loginComWhatsApp,
+    verificarCodigoWhatsApp,
+    completarCadastro,
+    sair,
+    toggleFav,
+    isFavorito,
+    criarPedido,
+  } = useCliente();
   const chave = slug || 'raizes';
   // Object.hasOwn evita que /constructor ou /toString resolvam para propriedades do Object.
   const loja = Object.hasOwn(lojas, chave) ? lojas[chave] : undefined;
@@ -19,11 +41,23 @@ export default function VitrineLoja() {
   const [cupomAplicado, setCupomAplicado] = useState(null);
   const [avisoToast, setAvisoToast] = useState('');
   const [buscando, setBuscando] = useState(true);
+  const [mostrarLogin, setMostrarLogin] = useState(false);
+  const [loginMetodo, setLoginMetodo] = useState('email'); // 'email' | 'whatsapp'
+  const [loginValor, setLoginValor] = useState('');
+  const [loginCodigo, setLoginCodigo] = useState('');
+  const [loginCodigoEnviado, setLoginCodigoEnviado] = useState(false);
+  const [loginCarregando, setLoginCarregando] = useState(false);
+  const [loginErro, setLoginErro] = useState('');
+  const completandoCadastro = Boolean(usuario && !cliente && !carregandoPerfil);
+
+  // Define a loja atual no contexto do cliente (para RPCs funcionarem)
+  useEffect(() => {
+    if (chave) definirLojaAtual(chave);
+  }, [chave, definirLojaAtual]);
 
   // Carrega só a loja do link (antes o app baixava todas as lojas de todos os clientes).
   useEffect(() => {
     let ativo = true;
-    setBuscando(true);
     carregarLojaPorSlug(chave).finally(() => {
       if (ativo) setBuscando(false);
     });
@@ -34,32 +68,29 @@ export default function VitrineLoja() {
 
   useEffect(() => {
     if (!loja) return;
-    const raiz = document.documentElement;
-    if (loja.corPrimaria) raiz.style.setProperty('--amber-600', loja.corPrimaria);
-    if (loja.corSecundaria) raiz.style.setProperty('--amber-700', loja.corSecundaria);
     document.title = `${loja.nome} | ConectaLocal`;
-
-    // Ao sair da vitrine, devolve as cores e o título padrão (senão vazam para login/landing).
     return () => {
-      raiz.style.removeProperty('--amber-600');
-      raiz.style.removeProperty('--amber-700');
       document.title = 'ConectaLocal';
     };
   }, [loja]);
 
   if (carregando || (buscando && !loja)) {
-    return <div style={{ padding: '5rem', textAlign: 'center' }}>Carregando vitrine...</div>;
+    return <div className="v-notfound">Carregando vitrine...</div>;
   }
 
   if (!loja) {
     return (
-      <div style={{ padding: '5rem', textAlign: 'center' }}>
-        <h2>Loja não encontrada</h2>
-        <p>Verifique o link digitado.</p>
+      <div className="v-notfound">
+        <div>
+          <h1>Loja não encontrada</h1>
+          <p style={{ color: 'var(--muted)', margin: '0.5rem 0 1.25rem' }}>Verifique o link digitado.</p>
+          <Link to="/" className="btn btn-primary">Ir para o início</Link>
+        </div>
       </div>
     );
   }
 
+  const tema = lerTema(loja);
   const isAgendamento = loja.modo === 'agendamento';
 
   const mostrarToast = (msg) => {
@@ -67,18 +98,12 @@ export default function VitrineLoja() {
     setTimeout(() => setAvisoToast(''), 2500);
   };
 
-  const formatarMoeda = (valor) => {
-    return 'R$ ' + Number(valor).toFixed(2).replace('.', ',');
-  };
-
   const adicionarItem = (nome, preco, opcao = '') => {
     const id = `${nome}|${opcao}`.toLowerCase();
     setSacola((prev) => {
       const existente = prev.find((i) => i.id === id);
       if (existente) {
-        return prev.map((i) =>
-          i.id === id ? { ...i, quantidade: Math.min(i.quantidade + 1, 20) } : i
-        );
+        return prev.map((i) => (i.id === id ? { ...i, quantidade: Math.min(i.quantidade + 1, 20) } : i));
       }
       return [...prev, { id, nome, opcao, preco, quantidade: 1 }];
     });
@@ -88,9 +113,7 @@ export default function VitrineLoja() {
   const alterarQuantidade = (id, delta) => {
     setSacola((prev) =>
       prev
-        .map((item) =>
-          item.id === id ? { ...item, quantidade: Math.min(item.quantidade + delta, 20) } : item
-        )
+        .map((item) => (item.id === id ? { ...item, quantidade: Math.min(item.quantidade + delta, 20) } : item))
         .filter((item) => item.quantidade > 0)
     );
   };
@@ -101,7 +124,6 @@ export default function VitrineLoja() {
 
     let percentual = null;
     if (loja.dono_id) {
-      // Lojas reais: o cupom é validado no servidor (a lista de cupons não é pública).
       const { data, error } = await supabase.rpc('validar_cupom', {
         p_loja_id: loja.id,
         p_codigo: codigoLimpo
@@ -126,8 +148,40 @@ export default function VitrineLoja() {
   const totalFinal = subtotal - valorDesconto;
   const totalItens = sacola.reduce((acc, item) => acc + item.quantidade, 0);
 
-  const finalizarWhatsApp = () => {
+  // Registra o pedido no banco (para histórico e fidelidade) e abre WhatsApp
+  const finalizarWhatsApp = async () => {
     if (sacola.length === 0) return;
+
+    // Se o cliente está logado, registra o pedido para histórico/fidelidade
+    if (cliente) {
+      try {
+        const itensParaRegistro = sacola.map(item => {
+          const prod = loja.produtos?.find(p => p.id === item.id.split('|')[0]) || {};
+          return {
+            item_id: prod.id || null,
+            nome: item.nome,
+            opcao: item.opcao || null,
+            preco: item.preco,
+            quantidade: item.quantidade,
+            duracao_minutos: prod.duracao_minutos || 30,
+          };
+        });
+
+        await criarPedido({
+          p_itens: itensParaRegistro,
+          p_subtotal: subtotal,
+          p_desconto: valorDesconto,
+          p_total: totalFinal,
+          p_cupom_codigo: cupomAplicado?.codigo || null,
+          p_cupom_desconto_pct: cupomAplicado?.descontoPercentual || null,
+          p_taxa_entrega: 0,
+          p_observacoes: null,
+        });
+      } catch (err) {
+        console.warn('Falha ao registrar pedido (continua no WhatsApp):', err);
+      }
+    }
+
     let msg = `Olá! Gostaria de fazer o seguinte pedido em *${loja.nome}*:\n\n`;
     sacola.forEach((item) => {
       const label = item.nome + (item.opcao ? ` (${item.opcao})` : '');
@@ -138,7 +192,91 @@ export default function VitrineLoja() {
       msg += `\nCupom (${cupomAplicado.codigo}): -${formatarMoeda(valorDesconto)}`;
     }
     msg += `\n*Total: ${formatarMoeda(totalFinal)}*`;
+
+    // Se logado e tem endereço padrão, adiciona na mensagem
+    if (cliente?.enderecos?.length) {
+      const endPadrao = cliente.enderecos.find(e => e.padrao) || cliente.enderecos[0];
+      if (endPadrao) {
+        msg += `\n\n📍 Entregar em: ${endPadrao.logradouro}, ${endPadrao.numero}${endPadrao.complemento ? `, ${endPadrao.complemento}` : ''} - ${endPadrao.bairro}, ${endPadrao.cidade}/${endPadrao.uf}`;
+        if (endPadrao.referencia) msg += ` (${endPadrao.referencia})`;
+      }
+    }
+
     window.open(`https://wa.me/${normalizarTelefone(loja.telefone)}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+  };
+
+  // ---- AUTH HANDLERS ----
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginErro('');
+    setLoginCarregando(true);
+    try {
+      const redirectTo = `${window.location.origin}/${loja.slug}`;
+      if (loginMetodo === 'email') {
+        await loginComEmail(loginValor.trim(), redirectTo);
+        mostrarToast('Verifique seu e-mail e clique no link para entrar.');
+        setMostrarLogin(false);
+        setLoginValor('');
+      } else if (loginCodigoEnviado) {
+        await verificarCodigoWhatsApp(loginValor, loginCodigo);
+        setLoginCodigoEnviado(false);
+        setLoginCodigo('');
+        mostrarToast('Código confirmado. Acesso realizado!');
+      } else {
+        await loginComWhatsApp(loginValor);
+        setLoginCodigoEnviado(true);
+        setLoginCodigo('');
+        mostrarToast('Código enviado por SMS/WhatsApp. Verifique suas mensagens.');
+      }
+    } catch (err) {
+      setLoginErro(err.message || 'Erro ao enviar código. Tente novamente.');
+    } finally {
+      setLoginCarregando(false);
+    }
+  };
+
+  const handleTrocarMetodo = () => {
+    setLoginMetodo(m => m === 'email' ? 'whatsapp' : 'email');
+    setLoginValor('');
+    setLoginCodigo('');
+    setLoginCodigoEnviado(false);
+    setLoginErro('');
+  };
+
+  const handleCompletarCadastro = async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const nome = form.get('nome')?.toString().trim();
+    const telefone = form.get('telefone')?.toString().trim();
+    if (!nome || !telefone) return;
+    setLoginCarregando(true);
+    try {
+      await completarCadastro(loja.slug, nome, telefone);
+      mostrarToast('Cadastro completo! Bem-vindo.');
+      setMostrarLogin(false);
+    } catch (err) {
+      setLoginErro(err.message || 'Erro ao completar cadastro.');
+    } finally {
+      setLoginCarregando(false);
+    }
+  };
+
+  const handleToggleFavorito = async (itemId) => {
+    if (!usuario) {
+      setMostrarLogin(true);
+      return;
+    }
+    try {
+      const adicionado = await toggleFav(itemId);
+      mostrarToast(adicionado ? 'Adicionado aos favoritos ❤️' : 'Removido dos favoritos');
+    } catch {
+      mostrarToast('Erro ao atualizar favoritos');
+    }
+  };
+
+  const handleSair = async () => {
+    await sair();
+    mostrarToast('Você saiu da sua conta');
   };
 
   const categoriasVisiveis =
@@ -147,128 +285,181 @@ export default function VitrineLoja() {
       : (loja.categorias || []).filter((c) => c.id === categoriaAtiva);
 
   return (
-    <div>
-      {/* HEADER */}
-      <header className="header">
-        <div className="container nav-container">
-          <div className="logo-wrapper">
-            <img src={loja.logo} alt={loja.nome} className="brand-logo-img" />
-            <div className="brand-text-container">
-              <span className="logo-title">{loja.nome}</span>
-              <span className="logo-subtitle">{loja.subtitulo}</span>
-            </div>
+    <TemaLoja tema={tema} corPrimaria={loja.corPrimaria} corSecundaria={loja.corSecundaria} corFundo={tema.corFundo}>
+      {/* TOPO FIXO */}
+      <header className="v-topbar">
+        <div className="v-wrap v-topbar-in">
+          <div className="v-brand">
+            {loja.logo ? <img src={loja.logo} alt="" /> : <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true"><rect width="34" height="34" rx="9" fill="var(--brand)"/><path d="M10 17h14M17 10v14" stroke="var(--brand-ink)" strokeWidth="3" strokeLinecap="round"/></svg>}
+            <span>{loja.nome}</span>
           </div>
 
-          {/* Só mostra o botão da sacola se NÃO for modo agendamento */}
-          {!isAgendamento && (
-            <div className="nav-action">
-              <button onClick={() => setSacolaAberta(true)} className="cart-btn-nav" title="Sua Sacola">
-                <i className="fa-solid fa-bag-shopping"></i>
-                <span className="cart-count">{totalItens}</span>
+          <div className="v-topbar-actions">
+            {!isAgendamento && (
+              <button onClick={() => setSacolaAberta(true)} className="v-cart-btn" aria-label="Abrir sacola">
+                <i className="fa-solid fa-bag-shopping" />
+                Sacola
+                <span className="v-cart-count">{totalItens}</span>
               </button>
+            )}
+
+            {/* Área do cliente */}
+            <div className="cliente-menu">
+              {usuario && cliente ? (
+                <div className="cliente-logado">
+                  <button className="cliente-avatar-btn" onClick={() => navigate(`/${loja.slug}/conta`)} aria-label="Minha conta">
+                    {cliente.avatar_url ? (
+                      <img src={cliente.avatar_url} alt="" className="cliente-avatar" />
+                    ) : (
+                      <span className="cliente-avatar-iniciais">{gerarAvatarIniciais(cliente.nome)}</span>
+                    )}
+                  </button>
+                  <div className="cliente-dropdown">
+                    <div className="cliente-info">
+                      <strong>{cliente.nome}</strong>
+                      <small>{formatarTelefoneExibicao(cliente.telefone)}</small>
+                      {cliente.fidelidade && cliente.fidelidade.pontos_atual > 0 && (
+                        <span className="fidelidade-badge">
+                          <i className="fa-solid fa-medal" /> {cliente.fidelidade.pontos_atual} pts
+                        </span>
+                      )}
+                    </div>
+                    <Link to={`/${loja.slug}/conta`} className="dropdown-item" onClick={() => setSacolaAberta(false)}>
+                      <i className="fa-solid fa-user" /> Minha conta
+                    </Link>
+                    <Link to={`/${loja.slug}/conta?tab=pedidos`} className="dropdown-item" onClick={() => setSacolaAberta(false)}>
+                      <i className="fa-solid fa-bag-shopping" /> Meus pedidos
+                    </Link>
+                    <Link to={`/${loja.slug}/conta?tab=favoritos`} className="dropdown-item" onClick={() => setSacolaAberta(false)}>
+                      <i className="fa-solid fa-heart" /> Favoritos
+                    </Link>
+                    <Link to={`/${loja.slug}/conta?tab=fidelidade`} className="dropdown-item" onClick={() => setSacolaAberta(false)}>
+                      <i className="fa-solid fa-medal" /> Fidelidade
+                    </Link>
+                    <button className="dropdown-item danger" onClick={handleSair}>
+                      <i className="fa-solid fa-right-from-bracket" /> Sair
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setMostrarLogin(true)}
+                  disabled={carregandoPerfil}
+                  aria-label={carregandoPerfil ? 'Carregando conta' : usuario ? 'Completar cadastro' : 'Sou cliente'}
+                >
+                  <i className="fa-solid fa-user" /> {carregandoPerfil ? 'Carregando...' : usuario ? 'Completar cadastro' : 'Sou cliente'}
+                </button>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </header>
 
-      {/* CORPO DA VITRINE */}
-      <section className="menu-section">
-        <div className="container">
-          <div className="section-title">
-            <h2>{isAgendamento ? 'Agendamento Online' : 'Cardápio Oficial Completo'}</h2>
-            <p>
-              {isAgendamento
-                ? `Escolha o serviço, o profissional e o melhor horário em ${loja.nome}.`
-                : `Selecione uma categoria abaixo para explorar os itens de ${loja.nome}.`}
-            </p>
-          </div>
+      <HeroLoja loja={loja} tema={tema} />
 
-          {/* AQUI ESTÁ A TROCA AUTOMÁTICA ENTRE BARBEARIA E RESTAURANTE */}
+      <main className="v-main">
+        <div className="v-wrap">
           {isAgendamento ? (
-            <AgendaBarbearia loja={loja} />
+            <>
+              <div className="v-section-head" style={{ textAlign: 'center' }}>
+                <h2>Agende seu horário</h2>
+                <p>Escolha o serviço, o profissional e o melhor horário.</p>
+              </div>
+              <AgendaBarbearia loja={loja} />
+            </>
           ) : (
             <>
-              {/* FILTROS */}
-              <div className="menu-filters">
-                <button
-                  className={`filter-btn ${categoriaAtiva === 'todos' ? 'active' : ''}`}
-                  onClick={() => setCategoriaAtiva('todos')}
-                >
-                  Ver Tudo
-                </button>
-                {(loja.categorias || []).map((cat) => (
-                  <button
-                    key={cat.id}
-                    className={`filter-btn ${categoriaAtiva === cat.id ? 'active' : ''}`}
-                    onClick={() => setCategoriaAtiva(cat.id)}
-                  >
-                    {cat.nome}
-                  </button>
-                ))}
+              <div className="v-section-head">
+                <h2>Cardápio</h2>
+                <p>Toque em adicionar para montar seu pedido e finalize pelo WhatsApp.</p>
               </div>
 
-              {/* LISTAGEM POR CATEGORIA */}
+              {(loja.categorias || []).length > 1 && (
+                <div className="v-chips" role="tablist">
+                  <button className={`v-chip ${categoriaAtiva === 'todos' ? 'active' : ''}`} onClick={() => setCategoriaAtiva('todos')}>
+                    Tudo
+                  </button>
+                  {(loja.categorias || []).map((cat) => (
+                    <button
+                      key={cat.id}
+                      className={`v-chip ${categoriaAtiva === cat.id ? 'active' : ''}`}
+                      onClick={() => setCategoriaAtiva(cat.id)}
+                    >
+                      {cat.nome}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {categoriasVisiveis.map((cat) => {
                 const produtosDaCategoria = (loja.produtos || []).filter((p) => p.categoriaId === cat.id);
                 if (produtosDaCategoria.length === 0) return null;
 
                 return (
-                  <div key={cat.id} className="menu-category-block active-category">
-                    <h3 className="category-heading">{cat.nome}</h3>
-                    <div className="menu-grid">
-                      {produtosDaCategoria.map((prod) => (
-                        <div key={prod.id} className="menu-card">
-                          <div className="menu-card-body">
-                            <span className="menu-category">{prod.tag}</span>
-                            <h3>{prod.nome}</h3>
-                            <p>{prod.descricao}</p>
-                          </div>
+                  <section key={cat.id}>
+                    <h3 className="v-cat-title">{cat.nome}</h3>
+                    <div className={`v-grid ${tema.listagem === 'lista' ? 'is-lista' : ''}`}>
+                      {produtosDaCategoria.map((prod) => {
+                        const favorito = isFavorito(prod.id);
+                        return (
+                          <article key={prod.id} className="v-item">
+                            <div className="v-item-body">
+                              {prod.tag && <span className="v-tag">{prod.tag}</span>}
+                              <h3>{prod.nome}</h3>
+                              {prod.descricao && <p>{prod.descricao}</p>}
+                            </div>
 
-                          {prod.opcoes ? (
-                            <div className="menu-footer menu-footer-options">
-                              {prod.opcoes.map((opt, idx) => (
-                                <div key={idx} className="menu-option">
-                                  <span className="opt-label">{opt.label}</span>
-                                  <span className="price">{formatarMoeda(opt.preco)}</span>
+                            {prod.opcoes ? (
+                              <div className="v-options">
+                                {prod.opcoes.map((opt, idx) => (
+                                  <div key={idx} className="v-opt">
+                                    <span className="v-opt-label">{opt.label}</span>
+                                    <span className="v-price">{formatarMoeda(opt.preco)}</span>
+                                    <button className="v-add" onClick={() => adicionarItem(prod.nome, opt.preco, opt.label)} aria-label={`Adicionar ${opt.label}`}>
+                                      <i className="fa-solid fa-plus" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="v-item-foot">
+                                <span className="v-price">{formatarMoeda(prod.preco)}</span>
+                                <div className="v-item-actions">
                                   <button
-                                    className="btn-add-cart"
-                                    onClick={() => adicionarItem(prod.nome, opt.preco, opt.label)}
+                                    className={`v-fav-btn ${favorito ? 'active' : ''}`}
+                                    onClick={() => handleToggleFavorito(prod.id)}
+                                    aria-label={favorito ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                                    title={favorito ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                                   >
-                                    <i className="fa-solid fa-plus"></i>
+                                    <i className={favorito ? 'fa-solid fa-heart' : 'fa-regular fa-heart'} />
+                                  </button>
+                                  <button className="v-add" onClick={() => adicionarItem(prod.nome, prod.preco)}>
+                                    <i className="fa-solid fa-plus" /> Adicionar
                                   </button>
                                 </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="menu-footer">
-                              <span className="price">{formatarMoeda(prod.preco)}</span>
-                              <button
-                                className="btn-add-cart"
-                                onClick={() => adicionarItem(prod.nome, prod.preco)}
-                              >
-                                <i className="fa-solid fa-plus"></i> Adicionar
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
                     </div>
-                  </div>
+                  </section>
                 );
               })}
             </>
           )}
         </div>
-      </section>
+      </main>
 
-      {/* GAVETA DA SACOLA (Apenas para modo catálogo) */}
+      {/* SACOLA (modo catálogo) */}
       {!isAgendamento && (
         <>
-          <div className={`cart-drawer ${sacolaAberta ? 'open' : ''}`}>
+          <aside className={`cart-drawer ${sacolaAberta ? 'open' : ''}`} aria-hidden={!sacolaAberta}>
             <div className="cart-header">
-              <h3>Sua Sacola</h3>
-              <button onClick={() => setSacolaAberta(false)} className="close-cart-btn">
-                <i className="fa-solid fa-xmark"></i>
+              <h3>Sua sacola</h3>
+              <button onClick={() => setSacolaAberta(false)} className="close-cart-btn" aria-label="Fechar sacola">
+                <i className="fa-solid fa-xmark" />
               </button>
             </div>
 
@@ -286,9 +477,9 @@ export default function VitrineLoja() {
                       <span>{formatarMoeda(item.preco * item.quantidade)}</span>
                     </div>
                     <div className="cart-item-controls">
-                      <button onClick={() => alterarQuantidade(item.id, -1)}>-</button>
+                      <button onClick={() => alterarQuantidade(item.id, -1)} aria-label="Diminuir">-</button>
                       <span>{item.quantidade}</span>
-                      <button onClick={() => alterarQuantidade(item.id, 1)}>+</button>
+                      <button onClick={() => alterarQuantidade(item.id, 1)} aria-label="Aumentar">+</button>
                     </div>
                   </div>
                 ))
@@ -296,67 +487,171 @@ export default function VitrineLoja() {
             </div>
 
             <div className="cart-footer">
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                <input
-                  type="text"
-                  placeholder="Cupom (ex: BEMVINDO10)"
-                  value={cupomInput}
-                  onChange={(e) => setCupomInput(e.target.value)}
-                  style={{
-                    flex: 1,
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '0.5rem',
-                    border: '1px solid #d6d3d1'
-                  }}
-                />
-                <button
-                  onClick={aplicarCupom}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.5rem',
-                    border: 'none',
-                    background: '#1c1917',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontWeight: 600
-                  }}
-                >
-                  Aplicar
-                </button>
+              <div className="coupon-row">
+                <input type="text" placeholder="Cupom de desconto" value={cupomInput} onChange={(e) => setCupomInput(e.target.value)} />
+                <button onClick={aplicarCupom} className="btn btn-soft btn-sm">Aplicar</button>
               </div>
 
               {cupomAplicado && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                  <span>Desconto ({cupomAplicado.codigo}):</span>
+                <div className="coupon-discount">
+                  <span>Desconto ({cupomAplicado.codigo})</span>
                   <span>- {formatarMoeda(valorDesconto)}</span>
                 </div>
               )}
 
               <div className="cart-total-line">
-                <span>Total:</span>
+                <span>Total</span>
                 <strong>{formatarMoeda(totalFinal)}</strong>
               </div>
 
-              <button onClick={finalizarWhatsApp} className="btn-checkout btn-checkout-wa">
-                <i className="fa-brands fa-whatsapp"></i> Finalizar Pedido via WhatsApp
+              <button onClick={finalizarWhatsApp} disabled={sacola.length === 0} className="btn btn-whats btn-block btn-lg">
+                <i className="fa-brands fa-whatsapp" /> Finalizar pedido no WhatsApp
               </button>
             </div>
-          </div>
+          </aside>
 
-          {sacolaAberta && <div className="cart-overlay open" onClick={() => setSacolaAberta(false)} />}
+          {sacolaAberta && <div className="cart-overlay" onClick={() => setSacolaAberta(false)} />}
         </>
       )}
 
-      {/* TOAST DE AVISO */}
-      <div className={`toast ${avisoToast ? 'show' : ''}`}>{avisoToast}</div>
+      <div className={`toast ${avisoToast ? 'show' : ''}`} role="status">{avisoToast}</div>
 
-      {/* FOOTER */}
-      <footer className="footer">
-        <div className="container footer-flex">
-          <p className="footer-logo">{loja.nome}</p>
-          <p className="footer-copy">&copy; 2026 ConectaLocal. Todos os direitos reservados.</p>
+      <footer className="v-footer">
+        <div className="v-wrap">
+          <strong>{loja.nome}</strong> · Feito com <Link to="/" style={{ color: 'inherit' }}>ConectaLocal</Link>
         </div>
       </footer>
-    </div>
+
+      {/* MODAL DE LOGIN / CADASTRO */}
+      {mostrarLogin && (
+        <div className="modal-overlay" onClick={() => setMostrarLogin(false)} role="dialog" aria-modal="true" aria-labelledby="login-title">
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setMostrarLogin(false)} aria-label="Fechar">
+              <i className="fa-solid fa-xmark" />
+            </button>
+
+            {usuario && carregandoPerfil ? (
+              <div role="status">
+                <h2 id="login-title">Verificando sua conta</h2>
+                <p>Aguarde enquanto carregamos seu perfil nesta loja.</p>
+              </div>
+            ) : cliente ? (
+              <div>
+                <h2 id="login-title">Bem-vindo, {cliente.nome}!</h2>
+                <p>Você está conectado nesta loja.</p>
+                <button type="button" className="btn btn-primary btn-block" onClick={() => setMostrarLogin(false)}>
+                  Continuar
+                </button>
+              </div>
+            ) : completandoCadastro ? (
+              <form onSubmit={handleCompletarCadastro}>
+                <h2 id="login-title">Complete seu cadastro</h2>
+                <p>Você entrou com sucesso! Falta só seu nome e WhatsApp para finalizar.</p>
+
+                {loginErro && <div className="alert alert-error" role="alert">{loginErro}</div>}
+
+                <label className="field">
+                  <span>Seu nome</span>
+                  <input name="nome" placeholder="Como devemos te chamar?" maxLength={80} required autoFocus />
+                </label>
+                <label className="field">
+                  <span>WhatsApp (com DDD)</span>
+                  <input name="telefone" type="tel" placeholder="(43) 99999-9999" inputMode="tel" maxLength={15} required />
+                </label>
+
+                <button type="submit" disabled={loginCarregando} className="btn btn-primary btn-block btn-lg">
+                  {loginCarregando ? 'Salvando...' : 'Finalizar cadastro'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleLogin}>
+                <h2 id="login-title">Entre na sua conta</h2>
+                <p>Receba um código para acessar seu histórico, favoritos e fidelidade.</p>
+
+                <div className="login-method-toggle" role="tablist">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={loginMetodo === 'email'}
+                    className={loginMetodo === 'email' ? 'active' : ''}
+                    onClick={handleTrocarMetodo}
+                  >
+                    <i className="fa-solid fa-envelope" /> E-mail
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={loginMetodo === 'whatsapp'}
+                    className={loginMetodo === 'whatsapp' ? 'active' : ''}
+                    onClick={handleTrocarMetodo}
+                  >
+                    <i className="fa-brands fa-whatsapp" /> WhatsApp
+                  </button>
+                </div>
+
+                {loginErro && <div className="alert alert-error" role="alert">{loginErro}</div>}
+
+                {loginMetodo === 'whatsapp' && loginCodigoEnviado ? (
+                  <>
+                    <label className="field">
+                      <span>Código de verificação</span>
+                      <input
+                        type="text"
+                        value={loginCodigo}
+                        onChange={(e) => setLoginCodigo(e.target.value)}
+                        placeholder="Digite o código recebido"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={8}
+                        required
+                        autoFocus
+                      />
+                      <small>Enviamos um código para o WhatsApp informado.</small>
+                    </label>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => {
+                        setLoginCodigoEnviado(false);
+                        setLoginCodigo('');
+                        setLoginErro('');
+                      }}
+                    >
+                      Alterar número
+                    </button>
+                  </>
+                ) : (
+                  <label className="field">
+                    <span>{loginMetodo === 'email' ? 'Seu e-mail' : 'WhatsApp (com DDD)'}</span>
+                    <input
+                      type={loginMetodo === 'email' ? 'email' : 'tel'}
+                      value={loginValor}
+                      onChange={e => setLoginValor(e.target.value)}
+                      placeholder={loginMetodo === 'email' ? 'seu@email.com' : '(43) 99999-9999'}
+                      inputMode={loginMetodo === 'email' ? 'email' : 'tel'}
+                      autoComplete={loginMetodo === 'email' ? 'email' : 'tel'}
+                      required
+                      autoFocus
+                    />
+                  </label>
+                )}
+
+                <button type="submit" disabled={loginCarregando} className="btn btn-primary btn-block btn-lg">
+                  {loginCarregando
+                    ? (loginCodigoEnviado ? 'Verificando...' : 'Enviando...')
+                    : loginCodigoEnviado
+                      ? 'Confirmar código'
+                      : `Enviar código por ${loginMetodo === 'email' ? 'e-mail' : 'WhatsApp'}`}
+                </button>
+
+                <p className="login-hint">
+                  Ao continuar, você concorda com nossos <a href="/termos" target="_blank">Termos de Uso</a> e <a href="/privacidade" target="_blank">Política de Privacidade</a>.
+                </p>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </TemaLoja>
   );
 }
