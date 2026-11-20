@@ -1,0 +1,91 @@
+-- DOCUMENTACAO, NAO E UMA MIGRACAO: nao executar no SQL Editor.
+-- Schema base do ConectaLocal, conforme consultas do Supabase compartilhadas
+-- em 2026-11-20 e SQL versionados no repositorio.
+--
+-- O resultado de colunas recebido nao incluiu profissionais nem todas as
+-- colunas de itens (por exemplo, opcoes, usada em 07_security_hardening.sql).
+-- Essas partes ficam marcadas como -- CONFIRMAR.
+-- As constraints enviadas detalham somente a tabela lojas. Nao inferir FKs
+-- para as outras tabelas a partir do uso feito pelas funcoes.
+
+-- public.lojas
+--   id uuid NOT NULL DEFAULT gen_random_uuid(); PRIMARY KEY lojas_pkey (id).
+--   dono_id uuid NULL; FOREIGN KEY lojas_dono_id_fkey REFERENCES auth.users(id).
+--   slug text NOT NULL; UNIQUE lojas_slug_key (slug).
+--   nome text NOT NULL.
+--   subtitulo text NULL.
+--   modo text NULL DEFAULT 'catalogo';
+--     CHECK lojas_modo_check: modo IN ('catalogo', 'agendamento').
+--   telefone text NOT NULL.
+--   logo_url text NULL DEFAULT '/img/logotipo.png' (valor atual da consulta;
+--     seguranca.sql tem migracao que define outro default, '/logotipo.png').
+--   cor_primaria text NULL DEFAULT '#b45309'.
+--   cor_secundaria text NULL DEFAULT '#92400e'.
+--   criado_em timestamptz NULL DEFAULT now().
+--   agenda_inicio time without time zone NOT NULL DEFAULT '09:00:00'.
+--   agenda_fim time without time zone NOT NULL DEFAULT '18:00:00'.
+--   agenda_intervalo integer NOT NULL DEFAULT 30.
+--   agenda_pausa_inicio time without time zone NULL DEFAULT '12:00:00'.
+--   agenda_pausa_fim time without time zone NULL DEFAULT '13:30:00'.
+--   agenda_dias integer[] NOT NULL DEFAULT '{1,2,3,4,5,6}'.
+--   personalizacao jsonb NOT NULL DEFAULT '{}'::jsonb.
+--   CHECK lojas_personalizacao_tamanho:
+--     octet_length(personalizacao::text) <= 4000.
+--   UNIQUE INDEX lojas_slug_case_insensitive_uk ON (lower(slug)):
+--     definido em 07_security_hardening.sql; confirmar existencia no banco consultado.
+--   UNIQUE INDEX lojas_um_por_dono ON (dono_id):
+--     definido em 03_hardening.sql; confirmar existencia no banco consultado.
+
+-- public.categorias
+--   id uuid NOT NULL DEFAULT gen_random_uuid().
+--   loja_id uuid NULL.
+--   nome text NOT NULL.
+--   ordem integer NULL DEFAULT 0.
+--   FK/PK e demais constraints: -- CONFIRMAR; nao foram incluidos no resultado.
+
+-- public.itens
+--   id uuid NOT NULL DEFAULT gen_random_uuid().
+--   loja_id uuid NULL.
+--   categoria_id uuid NULL.
+--   tag text NULL DEFAULT 'Destaque'.
+--   nome text NOT NULL.
+--   descricao text NULL.
+--   preco numeric NOT NULL.
+--   duracao_minutos integer NULL DEFAULT 30.
+--   ativo boolean NULL DEFAULT true.
+--   opcoes: -- CONFIRMAR tipo e existencia no banco; referenciado pelo SQL 07,
+--     mas ausente no resultado de colunas enviado.
+--   FK/PK e demais constraints: -- CONFIRMAR; nao foram incluidos no resultado.
+
+-- public.profissionais
+--   Colunas, tipos, nullability, defaults, PKs e FKs: -- CONFIRMAR.
+--   A tabela aparece no resultado de policies/RLS, mas nao no resultado de colunas.
+
+-- public.cupons
+--   id uuid NOT NULL DEFAULT gen_random_uuid().
+--   loja_id uuid NULL.
+--   codigo text NOT NULL.
+--   desconto_percentual integer NOT NULL.
+--   ativo boolean NULL DEFAULT true.
+--   expira_em timestamptz NULL.
+--   uso_maximo integer NULL.
+--   uso_atual integer NOT NULL DEFAULT 0.
+--   UNIQUE INDEX cupons_loja_codigo_uk ON (loja_id, upper(codigo)):
+--     definido em seguranca.sql; confirmar existencia no banco consultado.
+--   FK/PK e demais constraints: -- CONFIRMAR; nao foram incluidos no resultado.
+
+-- public.agendamentos
+--   id uuid NOT NULL DEFAULT gen_random_uuid().
+--   loja_id uuid NULL.
+--   profissional_id uuid NULL.
+--   item_id uuid NULL.
+--   cliente_nome text NOT NULL.
+--   cliente_telefone text NOT NULL.
+--   data_horario timestamptz NOT NULL.
+--   status text NULL DEFAULT 'confirmado'.
+--   criado_em timestamptz NULL DEFAULT now().
+--   duracao_minutos integer NOT NULL DEFAULT 30.
+--   UNIQUE INDEX agendamentos_slot_unico
+--     ON (profissional_id, data_horario) WHERE status = 'confirmado':
+--     definido em seguranca.sql; confirmar existencia no banco consultado.
+--   FK/PK e demais constraints: -- CONFIRMAR; nao foram incluidos no resultado.
